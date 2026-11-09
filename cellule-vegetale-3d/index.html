@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Cellule végétale 3D — vue éclatée interactive & RA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0c1310; --panel:rgba(16,25,20,.88); --panel2:rgba(24,36,29,.92);
+  --line:rgba(190,225,190,.14); --line2:rgba(190,225,190,.28);
+  --txt:#e7f0e6; --mute:#9db29f; --acc:#9be07f; --acc-ink:#0c1a0c; --warn:#f0c75e; --bad:#ef7a6a;
+  --r:14px;
+  --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+  --sal:env(safe-area-inset-left,0px); --sar:env(safe-area-inset-right,0px);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;overflow:hidden;color:var(--txt);
+  font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased;
+  background:radial-gradient(120% 90% at 50% 38%,#1b2a21 0%,#111b16 45%,#0a100d 100%);}
+body.in-xr{background:transparent}
+#app{position:fixed;inset:0}
+#app canvas{display:block;touch-action:none;outline:none}
+#labels{position:absolute;inset:0;pointer-events:none}
+button{font:inherit;color:inherit;cursor:pointer}
+input[type=range]{accent-color:var(--acc)}
+
+/* ---------- labels ---------- */
+.lbl{pointer-events:auto;cursor:pointer;user-select:none}
+.lbl .pill{display:flex;align-items:center;gap:6px;transform:translateY(-50%);
+  font:500 11px/1 'IBM Plex Mono',monospace;letter-spacing:.01em;white-space:nowrap;
+  padding:3px 9px 3px 3px;border-radius:999px;background:rgba(9,15,12,.78);border:1px solid var(--line2);
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:background .15s,border-color .15s}
+.lbl .pill b{display:grid;place-items:center;min-width:17px;height:17px;border-radius:50%;
+  background:var(--c);color:#0b120e;font-weight:600;font-size:9.5px}
+.lbl:hover .pill,.lbl.sel .pill{background:rgba(30,48,36,.95);border-color:var(--acc)}
+
+/* ---------- header ---------- */
+#top{position:absolute;top:calc(12px + var(--sat));left:calc(14px + var(--sal));right:calc(14px + var(--sar));
+  display:flex;align-items:flex-start;justify-content:space-between;gap:10px;pointer-events:none}
+#brand{pointer-events:auto}
+#brand h1{margin:0;font-family:'Fraunces',serif;font-weight:600;font-size:22px;letter-spacing:-.01em;line-height:1.1}
+#brand h1 em{font-style:normal;color:var(--acc)}
+#brand p{margin:4px 0 0;color:var(--mute);font-size:12px}
+.topbtns{display:flex;gap:6px;pointer-events:auto}
+.ibtn{height:36px;padding:0 12px;border-radius:10px;border:1px solid var(--line2);background:var(--panel);
+  display:flex;align-items:center;gap:6px;font-size:13px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.ibtn:hover{border-color:var(--acc)}
+.ibtn svg{width:16px;height:16px}
+
+/* ---------- legend ---------- */
+#legend{position:absolute;top:calc(78px + var(--sat));left:calc(14px + var(--sal));width:250px;
+  max-height:calc(100% - 78px - 190px - var(--sat) - var(--sab));overflow:auto;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:8px;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+#legend h3{margin:4px 6px 8px;font:500 11px 'IBM Plex Mono',monospace;color:var(--mute);text-transform:uppercase;letter-spacing:.08em;display:flex;justify-content:space-between}
+#legend h3 button{background:none;border:0;color:var(--mute);font:inherit;padding:0}
+#legend h3 button:hover{color:var(--acc)}
+.li{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px;cursor:pointer}
+.li:hover{background:rgba(255,255,255,.04)}
+.li.sel{background:rgba(155,224,127,.12)}
+.li.off .nm{opacity:.4;text-decoration:line-through}
+.li .dot{min-width:20px;height:20px;border-radius:50%;background:var(--c);color:#0b120e;display:grid;place-items:center;font:600 10px 'IBM Plex Mono',monospace}
+.li .nm{flex:1;font-size:13px;line-height:1.2}
+.li .eye{width:26px;height:26px;border:0;background:none;color:var(--mute);border-radius:6px;display:grid;place-items:center}
+.li .eye:hover{color:var(--txt);background:rgba(255,255,255,.06)}
+.li .eye svg{width:15px;height:15px}
+
+/* ---------- info card ---------- */
+#info{position:absolute;top:calc(78px + var(--sat));right:calc(14px + var(--sar));width:360px;
+  max-height:calc(100% - 78px - 190px - var(--sat) - var(--sab));overflow:auto;
+  background:var(--panel2);border:1px solid var(--line2);border-radius:var(--r);padding:16px 16px 14px;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 20px 50px rgba(0,0,0,.35)}
+.ih{display:flex;gap:12px;align-items:flex-start}
+.ih .num{min-width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--c);color:#0b120e;font:600 14px 'IBM Plex Mono',monospace}
+.ih .cat{font:500 10.5px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--mute)}
+.ih h2{margin:2px 0 0;font-family:'Fraunces',serif;font-weight:600;font-size:20px;line-height:1.15}
+.ih .x{margin-left:auto;border:0;background:none;color:var(--mute);font-size:22px;line-height:1;padding:2px 4px}
+.ih .x:hover{color:var(--txt)}
+.size{margin:12px 0 0;font:500 12px 'IBM Plex Mono',monospace;color:var(--warn)}
+#info p{margin:10px 0 0;line-height:1.5;color:#d4e0d3}
+#info h4{margin:14px 0 6px;font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--acc)}
+#info ul{margin:0;padding-left:18px;line-height:1.45;color:#d4e0d3}
+#info li{margin:3px 0}
+.tp{margin-top:14px;padding:10px 12px;border-radius:10px;background:rgba(240,199,94,.08);border:1px solid rgba(240,199,94,.25);line-height:1.45;font-size:13px}
+.tp b{display:block;font:500 10.5px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--warn);margin-bottom:4px}
+.iact{display:flex;gap:6px;margin-top:14px}
+.iact button{flex:1;height:34px;border-radius:9px;border:1px solid var(--line2);background:rgba(255,255,255,.03);font-size:13px}
+.iact button:hover{border-color:var(--acc)}
+
+/* ---------- dock ---------- */
+#dock{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(12px + var(--sab));
+  width:min(820px,calc(100% - 20px));background:var(--panel);border:1px solid var(--line);border-radius:18px;
+  padding:12px 14px 10px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 18px 50px rgba(0,0,0,.35)}
+.r1{display:flex;align-items:center;gap:12px}
+.round{width:46px;height:46px;min-width:46px;border-radius:50%;border:0;background:var(--acc);color:var(--acc-ink);display:grid;place-items:center}
+.round svg{width:20px;height:20px}
+.round.pulse{animation:pulse 1.8s ease-out 3}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(155,224,127,.55)}100%{box-shadow:0 0 0 16px rgba(155,224,127,0)}}
+.sl{flex:1;min-width:0}
+.slh{display:flex;justify-content:space-between;font:500 11px 'IBM Plex Mono',monospace;color:var(--mute);text-transform:uppercase;letter-spacing:.08em}
+.slh span:last-child{color:var(--txt)}
+#explode{width:100%;margin:6px 0 0;height:22px}
+.ticks{position:relative;height:14px;font:400 10px 'IBM Plex Mono',monospace;color:var(--mute)}
+.ticks span{position:absolute;transform:translateX(-10%);white-space:nowrap}
+.ticks span::before{content:'';position:absolute;left:0;top:-5px;width:1px;height:4px;background:var(--line2)}
+.r2{display:flex;gap:6px;margin-top:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.r2::-webkit-scrollbar{display:none}
+.chip{flex:none;height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line2);background:rgba(255,255,255,.03);font-size:13px;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.chip:hover{border-color:var(--acc)}
+.chip.on{background:rgba(155,224,127,.16);border-color:var(--acc);color:#dff5d4}
+.chip.primary{background:var(--acc);color:var(--acc-ink);border-color:var(--acc);font-weight:600;margin-left:auto}
+.chip svg{width:15px;height:15px}
+.r3{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px;color:var(--mute)}
+.seg{display:flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:none;padding:5px 10px;font:500 11px 'IBM Plex Mono',monospace;color:var(--mute)}
+.seg button.on{background:var(--acc);color:var(--acc-ink)}
+#cut{flex:1}
+
+/* ---------- quiz ---------- */
+#quiz{position:absolute;top:calc(14px + var(--sat));left:50%;transform:translateX(-50%);
+  background:var(--panel2);border:1px solid var(--acc);border-radius:14px;padding:10px 14px;display:flex;align-items:center;gap:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.4);max-width:calc(100% - 20px);z-index:5}
+#quiz .q{font-size:14px}
+#quiz .q small{display:block;font:500 10.5px 'IBM Plex Mono',monospace;color:var(--mute);text-transform:uppercase;letter-spacing:.08em}
+#quiz .q b{font-family:'Fraunces',serif;font-size:18px;color:var(--acc)}
+#quiz button{height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--line2);background:none;font-size:12px}
+#quiz.ok{border-color:var(--acc);box-shadow:0 0 0 3px rgba(155,224,127,.35)}
+#quiz.ko{border-color:var(--bad);box-shadow:0 0 0 3px rgba(239,122,106,.35)}
+
+/* ---------- toast / modal ---------- */
+#toast{position:absolute;left:50%;bottom:calc(150px + var(--sab));transform:translateX(-50%);background:#e7f0e6;color:#0c1310;
+  padding:9px 14px;border-radius:10px;font-weight:500;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90%;text-align:center;z-index:9}
+#toast.show{opacity:1}
+#hover{position:absolute;pointer-events:none;background:rgba(9,15,12,.9);border:1px solid var(--line2);padding:4px 8px;border-radius:6px;font-size:12px;transform:translate(12px,12px);z-index:4}
+#modal{position:fixed;inset:0;background:rgba(4,8,6,.6);display:grid;place-items:center;z-index:20;padding:16px}
+.mbox{position:relative;width:min(520px,100%);max-height:calc(100% - 20px);overflow:auto;background:#13201a;border:1px solid var(--line2);border-radius:16px;padding:20px 20px 18px;line-height:1.5}
+.mbox h2{margin:0 0 8px;font-family:'Fraunces',serif;font-weight:600;font-size:21px}
+.mbox p,.mbox li{color:#d4e0d3}
+.mbox ol,.mbox ul{padding-left:20px}
+.mbox .mclose{position:absolute;top:10px;right:12px;border:0;background:none;color:var(--mute);font-size:24px}
+.mbox .note{font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);margin-top:14px;padding-top:10px}
+.mbox input[type=url]{width:100%;height:38px;border-radius:9px;border:1px solid var(--line2);background:#0c1511;color:var(--txt);padding:0 10px;font:13px 'IBM Plex Mono',monospace}
+.mbtn{height:38px;padding:0 14px;border-radius:10px;border:1px solid var(--acc);background:var(--acc);color:var(--acc-ink);font-weight:600}
+.mbtn.ghost{background:none;color:var(--txt);border-color:var(--line2)}
+.mrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+#qrbox{margin-top:14px;display:grid;place-items:center}
+#qrbox svg{background:#fff;border-radius:10px;width:220px;height:220px}
+.qlink{display:inline-flex;flex-direction:column;align-items:center;gap:8px;text-decoration:none;color:var(--txt);margin-top:10px}
+.qlink img{width:240px;max-width:100%;border-radius:12px;border:2px solid var(--acc)}
+.qlink span{font-weight:600;color:var(--acc)}
+kbd{font:500 11px 'IBM Plex Mono',monospace;border:1px solid var(--line2);border-radius:4px;padding:1px 5px}
+.spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--line2);border-top-color:var(--acc);animation:sp 0.8s linear infinite;margin:14px auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- loader ---------- */
+#loader{position:fixed;inset:0;display:grid;place-items:center;z-index:30;background:var(--bg);transition:opacity .4s}
+#loader div{text-align:center;color:var(--mute);font:500 12px 'IBM Plex Mono',monospace;letter-spacing:.06em}
+
+/* ---------- XR overlay ---------- */
+#xrOverlay{position:fixed;inset:0;pointer-events:none;font-family:'IBM Plex Sans',system-ui,sans-serif;color:var(--txt)}
+#xrOverlay>*{pointer-events:auto}
+.xr-top{position:absolute;top:calc(12px + var(--sat));left:12px;right:12px;text-align:center}
+.xr-top span{display:inline-block;background:rgba(9,15,12,.82);border:1px solid var(--line2);padding:8px 12px;border-radius:12px;font-size:13px}
+.xr-card{position:absolute;left:12px;right:12px;bottom:200px;background:rgba(16,25,20,.92);border:1px solid var(--acc);border-radius:14px;padding:12px 14px}
+.xr-card b{font-family:'Fraunces',serif;font-size:18px;display:block}
+.xr-card small{color:var(--mute);font:500 10.5px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em}
+.xr-card p{margin:6px 0 0;font-size:13px;line-height:1.4;color:#d4e0d3}
+.xr-bottom{position:absolute;left:12px;right:12px;bottom:calc(14px + var(--sab));background:rgba(16,25,20,.9);border:1px solid var(--line2);border-radius:16px;padding:12px}
+.xr-bottom label{display:block;font:500 11px 'IBM Plex Mono',monospace;color:var(--mute);text-transform:uppercase;letter-spacing:.08em}
+.xr-bottom input{width:100%;margin-top:6px}
+.xr-mode{display:flex;gap:6px;margin-bottom:10px}
+.xr-mode button{flex:1;height:36px;border-radius:10px;border:1px solid var(--line2);background:none;color:var(--txt);font-size:14px}
+.xr-mode button.on{background:var(--acc);color:var(--acc-ink);border-color:var(--acc);font-weight:600}
+.xr-btns{display:flex;gap:6px;margin-top:10px}
+.xr-btns button{flex:1;height:42px;border-radius:10px;border:1px solid var(--line2);background:rgba(255,255,255,.04);color:var(--txt);font-size:18px}
+.xr-btns .danger{flex:2;font-size:14px;background:rgba(239,122,106,.15);border-color:var(--bad)}
+
+.modeseg{height:36px;background:var(--panel);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:10px}
+.modeseg button{font:500 12.5px 'IBM Plex Sans',sans-serif;padding:0 12px}
+#scope{position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 44%,transparent 0,transparent 39vmin,rgba(0,0,0,.55) 40vmin,rgba(0,0,0,.94) 42vmin)}
+body.scope{background:radial-gradient(circle at 50% 44%,#f4f1e4 0,#e6e2cf 30vmin,#cfc9ad 40vmin,#111 42vmin)}
+/* ---------- responsive ---------- */
+@media (max-width: 760px){
+  #brand h1{font-size:17px}
+  #brand p{display:none}
+  #legend{top:auto;bottom:calc(150px + var(--sab));left:10px;right:10px;width:auto;max-height:44%;z-index:6}
+  #info{top:auto;bottom:calc(150px + var(--sab));left:10px;right:10px;width:auto;max-height:46%;z-index:7;padding:14px}
+  #dock{padding:10px 10px 8px;border-radius:16px}
+  .ticks{display:none}
+  .hm{display:none}
+  .round{width:42px;height:42px;min-width:42px}
+  .chip{height:32px;padding:0 10px;font-size:12.5px}
+  .chip.primary{margin-left:0}
+  .lbl .pill{font-size:10px;padding:2px 7px 2px 2px}
+  .lbl .pill b{min-width:15px;height:15px;font-size:9px}
+  .lbl.minor{display:none!important}
+  .ibtn .t{display:none}
+  .modeseg button{padding:0 8px;font-size:12px}
+  #brand h1 em{display:none}
+  #toast{bottom:calc(140px + var(--sab))}
+}
+@media (min-width: 761px){ #legend.mobile-closed{display:block} }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="loader"><div><div class="spin"></div>ASSEMBLAGE DE LA CELLULE…</div></div>
+<div id="app"><div id="labels"></div></div>
+<div id="scope" hidden></div>
+
+<header id="top">
+  <div id="brand">
+    <h1>Cellule végétale <em>3D</em> — vue éclatée</h1>
+    <p>Physiologie végétale · modèle schématique, échelles non respectées</p>
+  </div>
+  <div class="topbtns">
+    <div class="seg modeseg" id="modeSeg"><button data-m="elodee" class="on">Élodée</button><button data-m="oignon">Oignon rouge</button></div>
+    <button class="ibtn" id="btnLegend" aria-label="Liste des organites">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg><span class="t">Organites</span>
+    </button>
+    <button class="ibtn" id="btnHelp" aria-label="Aide">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/></svg><span class="t">Aide</span>
+    </button>
+  </div>
+</header>
+
+<aside id="legend">
+  <h3><span>Organites</span><button id="showAll">Tout afficher</button></h3>
+  <div id="legendList"></div>
+</aside>
+
+<aside id="info" hidden></aside>
+
+<div id="quiz" hidden>
+  <div class="q"><small id="qmeta">Question 1/10 · score 0</small>Touchez : <b id="qname">—</b></div>
+  <button id="qskip">Passer</button><button id="qstop">Arrêter</button>
+</div>
+
+<div id="dock">
+  <div class="r1">
+    <button class="round pulse" id="play" aria-label="Animer l'éclatement">
+      <svg id="playIco" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l12-7z"/></svg>
+    </button>
+    <div class="sl">
+      <div class="slh"><span>Éclatement<span class="hm"> (vue « mécanisme de montre »)</span></span><span id="pct">0 %</span></div>
+      <input type="range" id="explode" min="0" max="1000" value="0" aria-label="Éclatement">
+      <div class="ticks">
+        <span style="left:0%">Paroi</span><span style="left:14%">Membrane</span><span style="left:35%">Noyau</span><span style="left:50%">Organites</span><span style="left:69%">Thylakoïdes</span><span style="left:84%">Nucléole</span>
+      </div>
+    </div>
+  </div>
+  <div class="r2">
+    <button class="chip on" id="btnLabels">Étiquettes</button>
+    <button class="chip on" id="btnLines">Repères</button>
+    <button class="chip on" id="btnTissue">Tissu</button>
+    <button class="chip" id="btnScope">Vue microscope</button>
+    <button class="chip" id="btnCut">Coupe</button>
+    <button class="chip" id="btnRotate">Rotation auto</button>
+    <button class="chip" id="btnReset">Recentrer</button>
+    <button class="chip" id="btnQuiz">Quiz</button>
+    <button class="chip" id="btnShare">QR étudiants</button>
+    <button class="chip primary" id="btnAR">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>Voir en RA
+    </button>
+  </div>
+  <div class="r3" id="cutRow" hidden>
+    <span>Plan</span>
+    <div class="seg" id="cutAxis"><button data-a="x">X</button><button data-a="y">Y</button><button data-a="z" class="on">Z</button></div>
+    <input type="range" id="cut" min="-1300" max="1300" value="0" aria-label="Position du plan de coupe">
+  </div>
+</div>
+
+<div id="hover" hidden></div>
+<div id="toast"></div>
+<div id="modal" hidden><div class="mbox"><button class="mclose" aria-label="Fermer">×</button><div id="mbody"></div></div></div>
+
+<div id="xrOverlay" hidden>
+  <div class="xr-top"><span id="xrHint">Visez la paillasse, puis touchez l'écran pour poser la cellule</span></div>
+  <div class="xr-card" id="xrCard" hidden></div>
+  <div class="xr-bottom">
+    <div class="xr-mode"><button data-m="place" class="on">Placer</button><button data-m="identify">Identifier</button></div>
+    <label>Éclatement <input type="range" id="xrExplode" min="0" max="1000" value="0"></label>
+    <div class="xr-btns">
+      <button id="xrRotL" aria-label="Tourner à gauche">⟲</button>
+      <button id="xrRotR" aria-label="Tourner à droite">⟳</button>
+      <button id="xrSmaller" aria-label="Réduire">−</button>
+      <button id="xrBigger" aria-label="Agrandir">+</button>
+      <button id="xrExit" class="danger">Quitter la RA</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/* =========================================================
+   Contenu pédagogique
+   ========================================================= */
+const PARTS = {
+  paroi:{ name:"Paroi pectocellulosique", short:"Paroi", color:"#c4d993", cat:"Enveloppe extracellulaire", size:"0,1 µm à plusieurs µm d'épaisseur",
+    desc:"Matrice extracellulaire rigide : microfibrilles de cellulose enchâssées dans une matrice d'hémicelluloses (xyloglucanes) et de pectines, avec des protéines (extensines). On distingue la lamelle moyenne pectique (ciment entre cellules voisines), la paroi primaire extensible et, dans certains tissus, une paroi secondaire lignifiée.",
+    fn:["Résiste à la pression de turgescence et donne sa forme à la cellule","Contrôle la croissance : relâchement pariétal par acidification (expansines, « croissance acide » induite par l'auxine)","Constitue l'apoplasme, voie de circulation de l'eau et des ions","Barrière physique contre les pathogènes"],
+    tp:"Forme allongée aux extrémités biseautées, comme les cellules d'épiderme d'oignon ou de feuille d'élodée. La paroi s'ouvre en 4 pièces lors de l'éclatement. La texture fibreuse évoque les microfibrilles de cellulose." },
+  plasmodesmes:{ name:"Plasmodesmes", short:"Plasmodesmes", color:"#7f9d52", cat:"Jonctions intercellulaires", size:"≈ 30–60 nm de diamètre",
+    desc:"Canaux traversant la paroi et reliant les cytoplasmes de cellules voisines. La membrane plasmique y est continue d'une cellule à l'autre et un desmotubule (issu du RE) en occupe le centre. Ils sont souvent regroupés en champs de ponctuations, comme sur ce modèle.",
+    fn:["Établissent le symplasme : continuité cytoplasmique entre cellules","Transport de sucres, d'ions, d'hormones, mais aussi d'ARN et de protéines (facteurs de transcription)","Perméabilité régulée par le dépôt de callose (β-1,3-glucane)","Voie de propagation des virus (protéines de mouvement)"],
+    tp:"Le chargement symplasmique du phloème, chez certaines espèces, passe par les plasmodesmes." },
+  membrane:{ name:"Membrane plasmique (plasmalemme)", short:"Membrane plasmique", color:"#f1d46a", cat:"Membrane", size:"≈ 7–10 nm d'épaisseur",
+    desc:"Bicouche de phospholipides et de stérols végétaux (sitostérol, stigmastérol), riche en protéines. Elle sépare le cytoplasme de la paroi et contrôle les échanges.",
+    fn:["Les H⁺-ATPases (type P) pompent les protons et créent la force proton-motrice qui énergise les transports secondaires","Aquaporines (PIP) : transport rapide de l'eau","Canaux et transporteurs (K⁺, NO₃⁻, sucres…)","Complexes cellulose-synthases (rosettes CESA) : synthèse de la cellulose","Perception des signaux (récepteurs kinases, hormones)"],
+    tp:"En milieu hypertonique, la membrane se décolle de la paroi : c'est la plasmolyse. Elle s'ouvre ici en deux hémi-coques (haut / bas)." },
+  cytoplasme:{ name:"Cytoplasme et brides transvacuolaires", short:"Cytoplasme", color:"#d8c9a0", cat:"Hyaloplasme (cytosol)", size:"couche pariétale de 1 à 5 µm",
+    desc:"Gel aqueux riche en protéines et en enzymes dans lequel baignent les organites. Dans une cellule très vacuolisée, il ne forme qu'une fine couche plaquée contre la paroi, plus épaisse autour du noyau, d'où partent des brides qui traversent la vacuole.",
+    fn:["Siège de nombreuses voies métaboliques : glycolyse, synthèse du saccharose, voie des pentoses phosphates","Cyclose : courants cytoplasmiques entraînés par l'actine et la myosine (les granules bougent sur le modèle)","Les brides transvacuolaires relient le noyau au cytoplasme pariétal et suspendent parfois le noyau au centre de la cellule","Transmission des signaux (Ca²⁺, phosphorylations)"],
+    tp:"La cyclose s'observe très bien chez l'élodée (déplacement des chloroplastes) et dans les poils staminaux de Tradescantia. Les brides sont visibles dans l'épiderme d'oignon au fort grossissement." },
+  vacuole:{ name:"Vacuole et tonoplaste", short:"Vacuole", color:"#7cc6e6", cat:"Compartiment de stockage", size:"jusqu'à 80–90 % du volume cellulaire",
+    desc:"Grand compartiment aqueux limité par une membrane simple, le tonoplaste. Le suc vacuolaire contient eau, ions (K⁺, Cl⁻, NO₃⁻), sucres, acides organiques, pigments (anthocyanes) et composés de défense. Son pH est acide (≈ 5–5,5).",
+    fn:["Génère la pression de turgescence (potentiel osmotique) : moteur de la croissance et du port de la plante","Stockage et réserves (ions, malate chez les plantes CAM, protéines dans les graines)","Le tonoplaste porte des pompes à protons (V-ATPase, V-PPase) et des aquaporines (TIP)","Fonction lytique, détoxication et séquestration des métaux"],
+    tp:"Mode « Oignon rouge » : la vacuole est colorée par les anthocyanes, comme au microscope. TP classique : plasmolyse / déplasmolyse en solution hypertonique. Remarquez le creux de la vacuole autour du noyau. Elle reste au centre du modèle éclaté, comme le « cœur » du mécanisme." },
+  noyau:{ name:"Noyau", short:"Noyau", color:"#a678e0", cat:"Organite à double membrane", size:"≈ 5–10 µm",
+    desc:"Limité par l'enveloppe nucléaire : deux membranes percées de pores nucléaires, en continuité avec le réticulum endoplasmique. Il contient le génome nucléaire sous forme de chromatine et un ou plusieurs nucléoles.",
+    fn:["Conservation et réplication de l'information génétique","Transcription des gènes et maturation des ARN","Pores nucléaires : échanges contrôlés noyau ↔ cytoplasme (ARNm, protéines, sous-unités ribosomiques)","Intégration des signaux (lumière, hormones) via les facteurs de transcription"],
+    tp:"Dans une cellule très vacuolisée, le noyau est repoussé contre la paroi, dans le cytoplasme pariétal. Poussez l'éclatement au maximum pour ouvrir l'enveloppe." },
+  nucleole:{ name:"Nucléole", short:"Nucléole", color:"#6b3aa3", cat:"Domaine nucléaire sans membrane", size:"≈ 1–3 µm", minor:true,
+    desc:"Région dense du noyau, sans membrane, organisée autour des gènes des ARN ribosomiques (régions organisatrices nucléolaires).",
+    fn:["Transcription des ARNr","Assemblage des sous-unités des ribosomes, exportées ensuite vers le cytoplasme par les pores nucléaires"],
+    tp:"Sa taille reflète l'activité de synthèse protéique de la cellule (gros nucléole dans les cellules méristématiques)." },
+  chromatine:{ name:"Chromatine", short:"Chromatine", color:"#e08cc0", cat:"ADN + protéines", size:"Arabidopsis : ≈ 135 Mpb, 5 chromosomes", minor:true,
+    desc:"ADN associé aux histones (nucléosomes). L'euchromatine, décondensée, est transcriptionnellement active ; l'hétérochromatine est condensée.",
+    fn:["Support de l'information génétique","Régulation de l'expression des gènes (modifications épigénétiques des histones, méthylation de l'ADN)"],
+    tp:"Elle se condense en chromosomes visibles lors de la mitose (TP pointes de racines d'ail ou d'oignon, coloration au carmin acétique)." },
+  rer:{ name:"Réticulum endoplasmique rugueux", short:"RE rugueux", color:"#e58aa5", cat:"Système endomembranaire", size:"citernes de ≈ 50–100 nm",
+    desc:"Réseau de citernes aplaties couvertes de ribosomes (points sombres), en continuité avec l'enveloppe nucléaire.",
+    fn:["Synthèse des protéines sécrétées, membranaires et vacuolaires","Repliement et début de la N-glycosylation des protéines","Contrôle qualité des protéines"],
+    tp:"Dans les graines, il produit les protéines de réserve stockées ensuite dans les vacuoles de réserve." },
+  rel:{ name:"Réticulum endoplasmique lisse", short:"RE lisse", color:"#f0a7c8", cat:"Système endomembranaire", size:"tubules de ≈ 30–60 nm",
+    desc:"Réseau tubulaire dépourvu de ribosomes, en continuité avec le RE rugueux.",
+    fn:["Synthèse des lipides membranaires et des huiles (oléosomes)","Réserve de calcium pour la signalisation","Forme le desmotubule au centre des plasmodesmes"],
+    tp:"Très développé dans les cellules sécrétrices (terpènes, cires cuticulaires)." },
+  golgi:{ name:"Appareil de Golgi (dictyosomes)", short:"Golgi", color:"#f2c14e", cat:"Système endomembranaire", size:"≈ 0,5–1 µm par dictyosome",
+    desc:"Chez les plantes, il est fragmenté en nombreux dictyosomes dispersés et mobiles le long de l'actine. Chacun est une pile de saccules (face cis → face trans) entourée de vésicules.",
+    fn:["Synthèse des polysaccharides matriciels de la paroi : hémicelluloses et pectines (la cellulose, elle, est fabriquée à la membrane plasmique)","Glycosylation des protéines","Tri et adressage des vésicules vers la membrane, la paroi ou la vacuole","Fournit les vésicules qui construisent la plaque cellulaire lors de la cytocinèse (phragmoplaste)"],
+    tp:"Les cellules à croissance rapide (poils absorbants, tubes polliniques) en sont très riches." },
+  chloroplaste:{ name:"Chloroplaste", short:"Chloroplaste", color:"#57b84f", cat:"Plaste à double enveloppe", size:"≈ 5–10 µm × 2–4 µm",
+    desc:"Plaste photosynthétique issu de l'endosymbiose d'une cyanobactérie. Double enveloppe, stroma et système de thylakoïdes. Il possède son propre ADN circulaire et des ribosomes de type 70S.",
+    fn:["Photosynthèse : conversion de l'énergie lumineuse en énergie chimique (ATP, NADPH)","Cycle de Calvin dans le stroma : fixation du CO₂ par la RuBisCO","Synthèse d'acides aminés, d'acides gras, de pigments et de l'amidon transitoire","Point de départ de la photorespiration (activité oxygénase de la RuBisCO)"],
+    tp:"Une cellule du mésophylle en contient 20 à 100 ; 16 sont représentés ici. Observables à l'élodée, entraînés par la cyclose. L'enveloppe devient transparente en fin d'éclatement." },
+  thylakoides:{ name:"Thylakoïdes et grana", short:"Thylakoïdes", color:"#2f8a3a", cat:"Membranes internes du chloroplaste", size:"granum ≈ 0,3–0,5 µm de diamètre", minor:true,
+    desc:"Sacs membranaires aplatis empilés en grana et reliés par des lamelles intergranaires (stromatiques). Ils délimitent un espace interne, le lumen.",
+    fn:["Portent les pigments (chlorophylles a et b, caroténoïdes) et les photosystèmes PSII et PSI","Chaîne photosynthétique de transfert d'électrons : PSII → plastoquinone → cytochrome b₆f → plastocyanine → PSI","Gradient de protons dans le lumen et synthèse d'ATP par l'ATP synthase","Photolyse de l'eau et dégagement d'O₂ au niveau du PSII"],
+    tp:"Les grana sont riches en PSII ; les lamelles stromatiques en PSI et ATP synthase (hétérogénéité latérale)." },
+  amidon:{ name:"Grain d'amidon", short:"Amidon", color:"#efe8cf", cat:"Réserve glucidique du stroma", size:"≈ 0,5–1 µm", minor:true,
+    desc:"Amidon transitoire, formé dans le stroma pendant le jour à partir des produits du cycle de Calvin.",
+    fn:["Stocke le jour une partie des produits de la photosynthèse","Dégradé la nuit pour alimenter la plante en sucres (export de maltose et de glucose, synthèse de saccharose)"],
+    tp:"Mise en évidence à l'eau iodée (lugol) : coloration bleu-noir. Comparer des feuilles prélevées le soir et le matin." },
+  mitochondrie:{ name:"Mitochondrie", short:"Mitochondrie", color:"#f39a5b", cat:"Organite à double membrane", size:"≈ 0,5–1 µm × 1–3 µm",
+    desc:"Membrane externe lisse et membrane interne repliée en crêtes, délimitant la matrice. Possède son propre génome et des ribosomes 70S.",
+    fn:["Respiration : cycle de Krebs dans la matrice, chaîne respiratoire et ATP synthase sur les crêtes","Photorespiration : conversion de 2 glycines en 1 sérine, avec libération de CO₂ et de NH₃","Oxydase alternative (AOX), propre aux plantes : respiration résistante au cyanure, thermogenèse (Arum)","Fourniture de squelettes carbonés pour les biosynthèses"],
+    tp:"La respiration se poursuit à la lumière comme à l'obscurité ; l'échange gazeux net mesuré à la lumière est la différence photosynthèse − respiration." },
+  peroxysome:{ name:"Peroxysome", short:"Peroxysome", color:"#b9cc4a", cat:"Organite à membrane simple", size:"≈ 0,5–1,5 µm",
+    desc:"Petit organite contenant souvent un cristalloïde de catalase. Dans les feuilles, il est accolé aux chloroplastes et aux mitochondries.",
+    fn:["Photorespiration : oxydation du glycolate en glyoxylate (glycolate oxydase), avec production d'H₂O₂ détruit par la catalase","β-oxydation des acides gras","Dans les graines oléagineuses en germination (glyoxysomes) : cycle du glyoxylate, conversion des lipides en sucres"],
+    tp:"La photorespiration associe trois compartiments : chloroplaste, peroxysome et mitochondrie. Sur le modèle, les peroxysomes sont placés au contact des chloroplastes." },
+  ribosomes:{ name:"Ribosomes libres (80S)", short:"Ribosomes", color:"#7b70d6", cat:"Complexes ribonucléoprotéiques", size:"≈ 25–30 nm",
+    desc:"Complexes d'ARN ribosomiques et de protéines, libres dans le cytosol (ou liés au RE rugueux). Représentés ici très agrandis.",
+    fn:["Traduction des ARNm en protéines","Les ribosomes libres synthétisent les protéines cytosoliques et celles importées dans le noyau, les plastes, les mitochondries et les peroxysomes"],
+    tp:"Les chloroplastes et les mitochondries possèdent leurs propres ribosomes, de type 70S (procaryote) : argument en faveur de l'endosymbiose." },
+  microtubules:{ name:"Microtubules corticaux", short:"Microtubules", color:"#a9c4ef", cat:"Cytosquelette", size:"≈ 25 nm de diamètre",
+    desc:"Polymères de tubuline α/β disposés sous la membrane plasmique, ici perpendiculaires au grand axe de la cellule. Le cytosquelette comprend aussi des filaments d'actine (non représentés).",
+    fn:["Guident les cellulose-synthases : l'orientation des microfibrilles suit celle des microtubules","Microfibrilles transversales → croissance anisotrope, élongation selon le grand axe","Forment la bande de préprophase, le fuseau mitotique et le phragmoplaste","L'actine, avec la myosine, assure la cyclose (courants cytoplasmiques)"],
+    tp:"Un traitement anti-microtubules (colchicine, oryzaline) rend la croissance isotrope : la cellule gonfle au lieu de s'allonger." },
+};
+const IDS = Object.keys(PARTS);
+IDS.forEach((id,i)=>{ PARTS[id].num=i+1; PARTS[id].mats=[]; PARTS[id].meshes=[]; });
+const SHELLS = new Set(['paroi','membrane','vacuole']);
+const CONTAINS = { chloroplaste:['thylakoides','amidon'], noyau:['nucleole','chromatine'], mitochondrie:[] };
+
+/* =========================================================
+   Outils
+   ========================================================= */
+const V=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
+let seed=20261109;
+const rnd=()=>{ seed=(seed*16807)%2147483647; return (seed-1)/2147483646; };
+const R=(a,b)=>a+(b-a)*rnd();
+const clamp01=x=>Math.max(0,Math.min(1,x));
+const ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+const st=(t,a,b)=>ease(clamp01((t-a)/(b-a)));
+const Q=(axis,ang)=>new THREE.Quaternion().setFromAxisAngle(axis,ang);
+function bake(g,p=V(),q=new THREE.Quaternion(),s=V(1,1,1)){ g.applyMatrix4(new THREE.Matrix4().compose(p,q,s)); return g; }
+function merge(list){
+  const arr=list.map(g=>{ const n=g.index?g.toNonIndexed():g;
+    for(const k of Object.keys(n.attributes)) if(!['position','normal','uv'].includes(k)) n.deleteAttribute(k);
+    n.clearGroups(); return n; });
+  return mergeGeometries(arr,false);
+}
+function randUnit(){ let v; do{ v=V(R(-1,1),R(-1,1),R(-1,1)); }while(v.lengthSq()<0.05||v.lengthSq()>1); return v.normalize(); }
+function perp(n){ const a=Math.abs(n.y)<0.9?V(0,1,0):V(1,0,0); return a.cross(n).normalize(); }
+
+/* =========================================================
+   Scène
+   ========================================================= */
+const app=document.getElementById('app');
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.setClearColor(0x000000,0);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.05;
+renderer.xr.enabled=true;
+app.prepend(renderer.domElement);
+
+const labelsDiv=document.getElementById('labels');
+const labelRenderer=new CSS2DRenderer({element:labelsDiv});
+labelRenderer.setSize(innerWidth,innerHeight);
+
+const scene=new THREE.Scene();
+const pmrem=new THREE.PMREMGenerator(renderer);
+scene.environment=pmrem.fromScene(new RoomEnvironment(renderer),0.04).texture;
+scene.add(new THREE.HemisphereLight(0xeaffea,0x1c2a20,0.7));
+const sun=new THREE.DirectionalLight(0xffffff,1.3); sun.position.set(8,14,10); scene.add(sun);
+const rim=new THREE.DirectionalLight(0xbfe6ff,0.5); rim.position.set(-10,-4,-8); scene.add(rim);
+
+const camera=new THREE.PerspectiveCamera(40,innerWidth/innerHeight,0.01,400);
+const HOME={pos:V(9,10.5,15),target:V(0,0,0)};
+if(innerWidth<760){ HOME.pos.set(15,17,26); }
+camera.position.copy(HOME.pos);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.target.copy(HOME.target);
+controls.enableDamping=true; controls.dampingFactor=0.08;
+controls.minDistance=3; controls.maxDistance=80; controls.autoRotateSpeed=0.8;
+
+const cell=new THREE.Group(); scene.add(cell);
+const pickables=[];
+function mat(id,color,o={}){
+  const m=new THREE.MeshStandardMaterial({color,roughness:0.55,metalness:0,...o});
+  PARTS[id].mats.push(m); return m;
+}
+const T=(op,o={})=>({transparent:true,opacity:op,side:THREE.DoubleSide,...o});
+function mesh(geo,material,id,parent){
+  const m=new THREE.Mesh(geo,material); m.userData.part=id; parent.add(m);
+  pickables.push(m); PARTS[id].meshes.push(m); return m;
+}
+
+/* ---------- mouvements de la vue éclatée ---------- */
+const movers=[];
+function addMover(obj,offsets,line=true,anchor=null){ movers.push({obj,base:obj.position.clone(),offsets,line,anchor}); }
+const labelDefs=[];
+function addLabel(id,obj,offset){ labelDefs.push({id,obj,offset}); }
+
+/* =========================================================
+   Construction de la cellule (forme organique)
+   ========================================================= */
+// --- Forme : prisme hexagonal allongé à extrémités en pointe, arêtes adoucies (log-sum-exp) + bruit ---
+const SX=7, SY=2.4, SZ=3, A_END=4.6;
+function makeShape(jit=0.12){
+  const j=()=>R(-jit,jit), planes=[];
+  const P=(n,pt)=>{ n.normalize(); planes.push([n.x,n.y,n.z,n.dot(pt)]); };
+  const Wp=SZ+j(), Wm=SZ+j(), Lp=SX+2*j(), Lm=SX+2*j(), ap=A_END+3*j(), am=A_END+3*j();
+  P(V(0,0.3*j(),1),V(0,0,Wp)); P(V(0,0.3*j(),-1),V(0,0,-Wm));
+  const endPlane=(tip,corner)=>{ const e=corner.clone().sub(tip); const n=V(e.z,0,-e.x); if(n.dot(tip)<0) n.negate(); P(n,tip); };
+  const tP=V(Lp,0,2*j()), tM=V(-Lm,0,2*j());
+  endPlane(tP,V(ap,0,Wp)); endPlane(tP,V(ap,0,-Wm)); endPlane(tM,V(-am,0,Wp)); endPlane(tM,V(-am,0,-Wm));
+  P(V(0.4*j(),1,0.3*j()),V(0,SY+j(),0)); P(V(0.4*j(),-1,0.3*j()),V(0,-SY+j(),0));
+  return {planes,k:2.4,ph:R(0,6.28)};
+}
+function fShape(sh,x,y,z){
+  let m=-1e9; const v=[];
+  for(const p of sh.planes){ const d=sh.k*(p[0]*x+p[1]*y+p[2]*z-p[3]); v.push(d); if(d>m) m=d; }
+  let s=0; for(const d of v) s+=Math.exp(d-m);
+  const nz=0.05*Math.sin(1.3*x+sh.ph)*Math.sin(1.7*z+0.7*sh.ph)+0.035*Math.sin(2.1*y+1.1*x+1.3*sh.ph)+0.03*Math.sin(0.9*z-1.7*x);
+  return (m+Math.log(s))/sh.k-nz;
+}
+function surfT(sh,o,u,inset){
+  let lo=0,hi=20;
+  for(let i=0;i<30;i++){ const t=(lo+hi)/2; if(fShape(sh,o.x+u.x*t,o.y+u.y*t,o.z+u.z*t)<-inset) lo=t; else hi=t; }
+  return lo;
+}
+const O=V(0,0,0);
+const surfP=(sh,o,u,inset)=>o.clone().addScaledVector(u,surfT(sh,o,u,inset));
+function grad(sh,p){ const e=0.02;
+  return V(fShape(sh,p.x+e,p.y,p.z)-fShape(sh,p.x-e,p.y,p.z),fShape(sh,p.x,p.y+e,p.z)-fShape(sh,p.x,p.y-e,p.z),fShape(sh,p.x,p.y,p.z+e)-fShape(sh,p.x,p.y,p.z-e)).normalize(); }
+const sdir=(ph,th)=>V(-Math.cos(ph)*Math.sin(th)*SX,Math.cos(th)*SY,Math.sin(ph)*Math.sin(th)*SZ).normalize();
+const rdir=()=>sdir(R(0,Math.PI*2),Math.acos(R(-1,1)));
+
+// patch de surface (option : épaisseur avec bords)
+function patch(sh,o,ph0,ph1,th0,th1,nu,nv,insetOut,insetIn=null,tf=null){
+  const pos=[],uv=[],idx=[];
+  const grid=(inset)=>{ const a=[]; for(let j=0;j<=nv;j++){ const th=th0+(th1-th0)*j/nv; for(let i=0;i<=nu;i++){
+      const ph=ph0+(ph1-ph0)*i/nu, u=sdir(ph,th); const ins=typeof inset==='function'?inset(u):inset;
+      let t=surfT(sh,o,u,ins); if(tf) t=tf(o,u,t); a.push(o.clone().addScaledVector(u,t)); } } return a; };
+  const add=(pts,rev)=>{ const b=pos.length/3;
+    pts.forEach((p,k)=>{ pos.push(p.x,p.y,p.z); uv.push((k%(nu+1))/nu,Math.floor(k/(nu+1))/nv); });
+    for(let j=0;j<nv;j++) for(let i=0;i<nu;i++){ const p00=b+j*(nu+1)+i,p10=p00+1,p01=p00+nu+1,p11=p01+1;
+      if(!rev) idx.push(p10,p00,p11,p00,p01,p11); else idx.push(p00,p10,p11,p01,p00,p11); } };
+  const out=grid(insetOut); add(out,false);
+  if(insetIn!==null){
+    const inn=grid(insetIn); add(inn,true);
+    const edge=ks=>{ for(let e=0;e<ks.length-1;e++){ const b=pos.length/3;
+      [out[ks[e]],out[ks[e+1]],inn[ks[e]],inn[ks[e+1]]].forEach((p,q)=>{ pos.push(p.x,p.y,p.z); uv.push(q%2,q>1?1:0); });
+      idx.push(b,b+1,b+2,b+1,b+3,b+2); } };
+    const row=j=>Array.from({length:nu+1},(_,i)=>j*(nu+1)+i), col=i=>Array.from({length:nv+1},(_,j)=>j*(nu+1)+i);
+    edge(row(0)); edge(row(nv)); edge(col(0)); edge(col(nu));
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+  g.setIndex(idx); g.computeVertexNormals(); return g;
+}
+
+const SH=makeShape(0.12);
+const WALL_T=0.22, MEM_IN=0.3, VAC_IN=0.92, ORG_IN=0.6;
+
+// ---- Noyau plaqué contre la paroi latérale (+z) ----
+const NRAD=V(1.15,0.95,0.6);
+const NC=(()=>{ const o=V(-1.6,0.15,0); const p=surfP(SH,o,V(0,0,1),MEM_IN); return V(-1.6,0.15,p.z-NRAD.z-0.1); })();
+const PR=V(NRAD.x+0.75,NRAD.y+0.7,NRAD.z+0.85);
+const pocketM=p=>Math.sqrt(((p.x-NC.x)/PR.x)**2+((p.y-NC.y)/PR.y)**2+((p.z-NC.z)/PR.z)**2);
+
+// ---- Paroi : 4 pièces (comme un boîtier de montre) + plasmodesmes ----
+function fiberTexture(){
+  const c=document.createElement('canvas'); c.width=c.height=256; const x=c.getContext('2d');
+  x.fillStyle='#e6edd0'; x.fillRect(0,0,256,256);
+  for(let i=0;i<240;i++){
+    x.strokeStyle=`rgba(118,140,84,${R(.08,.3).toFixed(2)})`; x.lineWidth=R(.5,1.6);
+    const y0=R(-30,286); x.beginPath(); x.moveTo(-10,y0);
+    x.bezierCurveTo(85,y0+R(-14,14),170,y0+R(-14,14),266,y0+R(-18,18)); x.stroke();
+  }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(3,1.5); t.anisotropy=4; return t;
+}
+const wallMat=mat('paroi',0xd6dcb8,T(0.24,{depthWrite:false,roughness:0.85,map:fiberTexture()}));
+const pdMat=mat('plasmodesmes',0x5f7d3b,{roughness:0.6});
+const wallPieces={};
+[[1,0,Math.PI/2],[-1,Math.PI/2,Math.PI]].forEach(([sy,t0,t1])=>{
+  [[-1,-Math.PI/2,Math.PI/2],[1,Math.PI/2,Math.PI*1.5]].forEach(([sx,p0,p1])=>{
+    const g=patch(SH,O,p0,p1,t0,t1,36,14,0,WALL_T);
+    const m=mesh(g,wallMat,'paroi',cell); m.renderOrder=3;
+    const anchor=surfP(SH,O,V(sx*0.6,sy*1,0.15).normalize(),0);
+    addMover(m,[{d:V(sx*2.6,sy*8,0),a:0,b:0.3}],true,anchor);
+    wallPieces[sx+','+sy]={m,cyl:[]};
+  });
+});
+let pdLabel=null;
+for(let f=0;f<9;f++){
+  const dirs=[V(1,0.1,0.25),V(-1,-0.1,-0.2),V(0.75,0.2,-0.6),V(-0.7,0.3,0.6),V(0.3,0.25,1),V(-0.35,-0.3,-1),V(0.1,-0.35,1),V(0.9,-0.3,0.4),V(-0.95,0.25,-0.5)];
+  const c=surfP(SH,O,dirs[f].normalize(),WALL_T/2), n=grad(SH,c);
+  const piece=wallPieces[(c.x<0?-1:1)+','+(c.y<0?-1:1)];
+  const t1=perp(n), t2=n.clone().cross(t1);
+  const k=8+Math.floor(R(0,5));
+  for(let j=0;j<k;j++){
+    const a=R(0,Math.PI*2), r=Math.sqrt(rnd())*0.38;
+    const p=surfP(SH,O,c.clone().addScaledVector(t1,Math.cos(a)*r).addScaledVector(t2,Math.sin(a)*r).normalize(),WALL_T/2);
+    piece.cyl.push(bake(new THREE.CylinderGeometry(0.045,0.045,WALL_T+0.14,6,1,true),p,new THREE.Quaternion().setFromUnitVectors(V(0,1,0),grad(SH,p))));
+  }
+  if(f===0) pdLabel={piece,p:c.clone().addScaledVector(n,0.25)};
+}
+for(const key in wallPieces){ const P=wallPieces[key]; if(P.cyl.length) mesh(merge(P.cyl),pdMat,'plasmodesmes',P.m); }
+addLabel('paroi',wallPieces['1,1'].m,surfP(SH,O,V(0.35,1,0.55).normalize(),0));
+addLabel('plasmodesmes',pdLabel.piece.m,pdLabel.p);
+
+// ---- Membrane plasmique (2 hémi-coques qui épousent la paroi) ----
+const memMat=mat('membrane',0xf1d46a,T(0.2,{depthWrite:false,roughness:0.35}));
+[[1,0,Math.PI/2],[-1,Math.PI/2,Math.PI]].forEach(([sy,t0,t1])=>{
+  const m=mesh(patch(SH,O,0,Math.PI*2,t0,t1,64,16,MEM_IN),memMat,'membrane',cell); m.renderOrder=2;
+  addMover(m,[{d:V(0,sy*5,0),a:0.12,b:0.42}],true,surfP(SH,O,V(0.25,sy,0.2).normalize(),MEM_IN));
+  if(sy>0) addLabel('membrane',m,surfP(SH,O,V(-0.45,1,0.45).normalize(),MEM_IN));
+});
+
+// ---- Vacuole : remplit la cellule, creusée autour du noyau ----
+const vacMat=mat('vacuole',0x8fcde6,T(0.26,{depthWrite:false,roughness:0.1}));
+{
+  const ins=u=>VAC_IN+0.07*Math.sin(5*u.x+1.1)*Math.cos(4*u.y)+0.05*Math.sin(6*u.z+0.4);
+  const dent=(o,u,t)=>{ while(t>0.4){ const p=o.clone().addScaledVector(u,t); const m=pocketM(p); if(m>=1) break; t-=0.02*(1+ (1-m)*3); } return t; };
+  const m=mesh(patch(SH,O,0,Math.PI*2,0,Math.PI,72,36,ins,null,dent),vacMat,'vacuole',cell);
+  m.renderOrder=1;
+  addLabel('vacuole',m,surfP(SH,O,V(0.45,1,-0.2).normalize(),VAC_IN+0.05));
+}
+
+// ---- Noyau ----
+const nucleus=new THREE.Group(); nucleus.position.copy(NC); cell.add(nucleus);
+addMover(nucleus,[{d:V(0,0,4.4),a:0.35,b:0.62}]);
+const envMat=mat('noyau',0xa678e0,T(0.62,{roughness:0.45}));
+const poreMat=mat('noyau',0x4f2f86,{roughness:0.5});
+function blobify(g,amp=0.05){ const pos=g.attributes.position, v=V();
+  for(let i=0;i<pos.count;i++){ v.fromBufferAttribute(pos,i); const d=v.clone().normalize();
+    const f=1+amp*Math.sin(4*d.x+1.3)*Math.cos(3*d.y+0.4)+amp*0.7*Math.sin(5*d.z+2.1);
+    pos.setXYZ(i,v.x*f,v.y*f,v.z*f); } g.computeVertexNormals(); return g; }
+[1,-1].forEach(sg=>{
+  const ts=sg>0?0:Math.PI/2;
+  const g=merge([bake(new THREE.SphereGeometry(1,40,14,0,Math.PI*2,ts,Math.PI/2),V(),undefined,NRAD),
+                 bake(new THREE.SphereGeometry(1,40,14,0,Math.PI*2,ts,Math.PI/2),V(),undefined,NRAD.clone().multiplyScalar(0.94))]);
+  const h=mesh(blobify(g,0.04),envMat,'noyau',nucleus);
+  const pores=[];
+  for(let k=0;k<50;k++){
+    const n=V(R(-1,1),R(0.08,1)*sg,R(-1,1)).normalize();
+    const p=V(n.x*NRAD.x,n.y*NRAD.y,n.z*NRAD.z), nn=V(n.x/NRAD.x,n.y/NRAD.y,n.z/NRAD.z).normalize();
+    pores.push(bake(new THREE.TorusGeometry(0.06,0.02,4,10),p,new THREE.Quaternion().setFromUnitVectors(V(0,0,1),nn)));
+  }
+  mesh(merge(pores),poreMat,'noyau',h);
+  addMover(h,[{d:V(0,1.5*sg,0),a:0.78,b:1}]);
+  if(sg>0) addLabel('noyau',h,V(0,NRAD.y+0.1,0.2));
+});
+{
+  const nu=mesh(blobify(new THREE.SphereGeometry(0.4,24,16),0.08),mat('nucleole',0x5a2b8f,{roughness:0.5}),'nucleole',nucleus);
+  nu.position.set(0.25,0.05,0.05);
+  addLabel('nucleole',nu,V(0.2,0.42,0.2));
+  const tubes=[], lim=NRAD.clone().multiplyScalar(0.82);
+  for(let k=0;k<8;k++){
+    let p=V(R(-.6,.6),R(-.5,.5),R(-.3,.3)); const pts=[p.clone()];
+    for(let j=0;j<9;j++){ p=p.clone().add(randUnit().multiplyScalar(0.3));
+      const m=Math.sqrt((p.x/lim.x)**2+(p.y/lim.y)**2+(p.z/lim.z)**2); if(m>1) p.multiplyScalar(0.95/m); pts.push(p.clone()); }
+    tubes.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),40,0.028,5,false));
+  }
+  const ch=mesh(merge(tubes),mat('chromatine',0xe08cc0,{roughness:0.5}),'chromatine',nucleus);
+  addLabel('chromatine',ch,V(-0.55,-0.4,0.3));
+}
+
+// ---- RE rugueux : berceau de citernes côté vacuole ----
+const rerG=new THREE.Group(); rerG.position.copy(NC); cell.add(rerG);
+addMover(rerG,[{d:V(0,0,2.4),a:0.35,b:0.62},{d:V(-3.2,0,0),a:0.5,b:0.8}]);
+{
+  const P0=1.08*Math.PI, PL=0.84*Math.PI, T0=0.2*Math.PI, TL=0.6*Math.PI, deltas=[0.22,0.42,0.62];
+  const sheets=[], ribs=[];
+  const pt=(dl,ph,th,extra=0)=>{ const d=V(-Math.cos(ph)*Math.sin(th),Math.cos(th),Math.sin(ph)*Math.sin(th));
+    const w=1+0.05*Math.sin(d.x*9+dl*10)*Math.cos(d.y*7)+extra; return V(d.x*(NRAD.x+dl)*w,d.y*(NRAD.y+dl)*w,d.z*(NRAD.z+dl)*w); };
+  deltas.forEach(dl=>{
+    const g=new THREE.SphereGeometry(1,32,14,P0,PL,T0,TL); const pos=g.attributes.position, v=V();
+    for(let i=0;i<pos.count;i++){ v.fromBufferAttribute(pos,i); const d=v.clone().normalize();
+      const w=1+0.05*Math.sin(d.x*9+dl*10)*Math.cos(d.y*7); pos.setXYZ(i,d.x*(NRAD.x+dl)*w,d.y*(NRAD.y+dl)*w,d.z*(NRAD.z+dl)*w); }
+    g.computeVertexNormals(); sheets.push(g);
+  });
+  for(let k=0;k<240;k++){ const dl=deltas[k%3]; ribs.push(bake(new THREE.OctahedronGeometry(0.034,0),pt(dl,P0+R(0.03,0.97)*PL,T0+R(0.03,0.97)*TL,(rnd()<.5?-1:1)*0.035))); }
+  mesh(merge(sheets),mat('rer',0xe58aa5,T(0.62,{roughness:0.5})),'rer',rerG);
+  mesh(merge(ribs),mat('rer',0x3d3487,{roughness:0.5}),'rer',rerG);
+  addLabel('rer',rerG,pt(0.62,1.5*Math.PI,0.35*Math.PI));
+}
+
+// ---- Cytoplasme : poche périnucléaire + brides transvacuolaires (cyclose animée) ----
+const cytoG=new THREE.Group(); cell.add(cytoG);
+const cytoMat=mat('cytoplasme',0xd8c9a0,T(0.5,{roughness:0.6}));
+const pocketMat=new THREE.MeshStandardMaterial({color:0xd8c9a0,...T(0.1,{depthWrite:false,roughness:0.6})});
+const strandCurves=[], granules=[];
+{
+  const pk=new THREE.Mesh(blobify(bake(new THREE.SphereGeometry(1,32,20),V(),undefined,PR.clone().multiplyScalar(0.96)),0.05),pocketMat); cytoG.add(pk);
+  pk.position.copy(NC);
+  const targets=[V(1,0.15,-0.35),V(-1,0.05,-0.25),V(0.35,-1,-0.55),V(0.5,1,-0.6),V(0.15,0.05,-1),V(0.8,-0.4,0.1)];
+  const tubes=[];
+  targets.forEach(dir=>{
+    const s=NC.clone().add(V(R(-.7,.7),R(-.4,.4),-(NRAD.z+0.5)));
+    const e=surfP(SH,O,dir.normalize(),ORG_IN);
+    const pts=[s]; for(const t of [0.3,0.55,0.8]) pts.push(s.clone().lerp(e,t).add(V(R(-.4,.4),R(-.35,.35),R(-.4,.4)))); pts.push(e);
+    const c=new THREE.CatmullRomCurve3(pts); strandCurves.push(c);
+    tubes.push(new THREE.TubeGeometry(c,56,0.055,6,false));
+  });
+  const sm=mesh(merge(tubes),cytoMat,'cytoplasme',cytoG);
+  addLabel('cytoplasme',cytoG,strandCurves[0].getPointAt(0.55));
+  const gGeo=new THREE.SphereGeometry(0.05,8,6); var gMat=mat('cytoplasme',0xf3e6bf,{roughness:0.5});
+  for(let i=0;i<40;i++){ const g=mesh(gGeo,gMat,'cytoplasme',cytoG); granules.push({g,c:strandCurves[i%strandCurves.length],ph:rnd(),sp:R(0.025,0.05)*(rnd()<.5?1:-1)}); }
+}
+
+// ---- Organites du cytoplasme pariétal ----
+const placed=[{p:NC,r:1.6}];
+function freePoint(p,r){ return !placed.some(q=>q.p.distanceTo(p)<q.r+r); }
+function sampleSurf(inset,r){
+  for(let k=0;k<1200;k++){
+    const p=surfP(SH,O,rdir(),inset);
+    if(pocketM(p)<1.12||!freePoint(p,r)) continue;
+    placed.push({p,r}); return {p,n:grad(SH,p)};
+  }
+  return null;
+}
+const orient=(G,n)=>{ G.quaternion.setFromUnitVectors(V(0,1,0),n).multiply(Q(V(0,1,0),R(0,Math.PI*2))); };
+
+// RE lisse : réseau de tubules qui suit la membrane
+const relMat=mat('rel',0xf0a7c8,T(0.9,{roughness:0.45}));
+for(let r=0;r<2;r++){
+  const s=sampleSurf(0.55,1.0); if(!s) continue;
+  const tubes=[];
+  for(let k=0;k<6;k++){
+    let p=s.p.clone().addScaledVector(perp(s.n).applyAxisAngle(s.n,R(0,6.28)),R(0,0.5)); let dir=perp(grad(SH,p)).applyAxisAngle(grad(SH,p),R(0,6.28));
+    const pts=[surfP(SH,O,p.clone().normalize(),R(.45,.65))];
+    for(let j=0;j<7;j++){ const n=grad(SH,pts[pts.length-1]); dir.applyAxisAngle(n,R(-0.8,0.8)); dir.addScaledVector(n,-dir.dot(n)).normalize();
+      p=pts[pts.length-1].clone().addScaledVector(dir,0.32); pts.push(surfP(SH,O,p.normalize(),R(.45,.68))); }
+    tubes.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),40,0.045,5,false));
+  }
+  const g=merge(tubes); g.translate(-s.p.x,-s.p.y,-s.p.z);
+  const G=new THREE.Group(); G.position.copy(s.p); cell.add(G); mesh(g,relMat,'rel',G);
+  addMover(G,[{d:s.n.clone().multiplyScalar(2.4),a:0.42,b:0.75}]);
+  if(r===0) addLabel('rel',G,s.n.clone().multiplyScalar(0.25));
+}
+
+// Golgi
+const golgiMat=mat('golgi',0xf2c14e,T(0.9,{roughness:0.4}));
+function dictyGeo(){
+  const parts=[];
+  for(let i=0;i<5;i++){ const th=0.42+i*0.03; parts.push(bake(new THREE.SphereGeometry(0.8,24,5,0,Math.PI*2,0,th),V(0,i*0.1-1.0,0))); }
+  for(let k=0;k<12;k++){ const a=R(0,Math.PI*2), r=R(0.4,0.56); parts.push(bake(new THREE.SphereGeometry(R(0.04,0.065),6,4),V(Math.cos(a)*r,R(-0.3,0.35),Math.sin(a)*r))); }
+  return merge(parts);
+}
+for(let i=0;i<4;i++){
+  const s=sampleSurf(ORG_IN,0.75); if(!s) continue;
+  const G=new THREE.Group(); G.position.copy(s.p); orient(G,s.n); G.scale.setScalar(0.85); cell.add(G);
+  mesh(dictyGeo(),golgiMat,'golgi',G);
+  addMover(G,[{d:s.n.clone().multiplyScalar(2.6),a:0.42,b:0.76}]);
+  if(i===0) addLabel('golgi',G,V(0,0.45,0));
+}
+
+// Chloroplastes (plaqués contre la paroi, comme chez l'élodée)
+const chlEnvMat=mat('chloroplaste',0x57b84f,T(0.6,{roughness:0.45}));
+const granaMat=mat('thylakoides',0x1f6b2a,{roughness:0.5});
+const starchMat=mat('amidon',0xf1ead2,{roughness:0.7});
+const chlEnvGeo=merge([bake(new THREE.SphereGeometry(0.6,22,12),V(),undefined,V(1,0.42,0.62)),bake(new THREE.SphereGeometry(0.575,22,12),V(),undefined,V(1,0.42,0.62))]);
+const granaGeo=(()=>{
+  const parts=[], xs=[-0.36,-0.18,0,0.18,0.36], zs=xs.map((_,i)=>i%2?0.1:-0.1);
+  xs.forEach((x,i)=>{ const n=3+(i%3); for(let k=0;k<n;k++) parts.push(bake(new THREE.CylinderGeometry(0.1,0.1,0.03,12,1),V(x,(k-(n-1)/2)*0.05,zs[i]))); });
+  for(let i=0;i<4;i++){ const dx=xs[i+1]-xs[i], dz=zs[i+1]-zs[i], L=Math.hypot(dx,dz);
+    parts.push(bake(new THREE.BoxGeometry(L,0.012,0.05),V((xs[i]+xs[i+1])/2,(i%2?0.02:-0.02),(zs[i]+zs[i+1])/2),Q(V(0,1,0),-Math.atan2(dz,dx)))); }
+  return merge(parts);
+})();
+const starchGeo=bake(new THREE.SphereGeometry(0.1,14,10),V(0.08,0,-0.27),undefined,V(1.3,0.7,0.7));
+const chloros=[];
+for(let i=0;i<16;i++){
+  const s=sampleSurf(ORG_IN,0.85); if(!s) continue;
+  const G=new THREE.Group(); G.position.copy(s.p); orient(G,s.n); G.scale.setScalar(0.85); cell.add(G);
+  mesh(chlEnvGeo,chlEnvMat,'chloroplaste',G); mesh(granaGeo,granaMat,'thylakoides',G); mesh(starchGeo,starchMat,'amidon',G);
+  const a=0.42+R(0,0.08); addMover(G,[{d:s.n.clone().multiplyScalar(2.7),a,b:a+0.3}]);
+  chloros.push({G,s});
+  if(chloros.length===1){ addLabel('chloroplaste',G,V(0,0.45,0)); addLabel('thylakoides',G,V(-0.36,0.18,-0.1)); addLabel('amidon',G,V(0.08,0.05,-0.3)); }
+}
+
+// Peroxysomes au contact des chloroplastes
+const peroMat=mat('peroxysome',0xb9cc4a,T(0.6,{roughness:0.4}));
+const peroCoreMat=mat('peroxysome',0x6f7f17,{roughness:0.4});
+let peroCount=0;
+for(const c of chloros){
+  if(peroCount>=5) break;
+  for(let t=0;t<12;t++){
+    const tg=perp(c.s.n).applyAxisAngle(c.s.n,R(0,Math.PI*2));
+    const p=surfP(SH,O,c.s.p.clone().addScaledVector(tg,0.78).normalize(),ORG_IN);
+    if(pocketM(p)<1.1||!freePoint(p,0.18)) continue;
+    placed.push({p,r:0.22});
+    const n=grad(SH,p), G=new THREE.Group(); G.position.copy(p); cell.add(G);
+    mesh(new THREE.SphereGeometry(0.17,18,12),peroMat,'peroxysome',G);
+    mesh(bake(new THREE.BoxGeometry(0.1,0.1,0.1),V(),new THREE.Quaternion().setFromEuler(new THREE.Euler(.6,.6,0))),peroCoreMat,'peroxysome',G);
+    addMover(G,[{d:n.multiplyScalar(2.9),a:0.45,b:0.78}]);
+    if(peroCount===0) addLabel('peroxysome',G,V(0,0.25,0));
+    peroCount++; break;
+  }
+}
+
+// Mitochondries
+const mitoMat=mat('mitochondrie',0xf39a5b,T(0.55,{roughness:0.45}));
+const cristMat=mat('mitochondrie',0xb8552a,{roughness:0.5});
+const rz=Q(V(0,0,1),Math.PI/2);
+const mitoGeo=merge([bake(new THREE.CapsuleGeometry(0.17,0.5,4,12),V(),rz),bake(new THREE.CapsuleGeometry(0.15,0.48,4,12),V(),rz)]);
+const cristGeo=merge(Array.from({length:6},(_,i)=>bake(new THREE.BoxGeometry(0.018,0.2,0.2),V(-0.3+i*0.12,(i%2?1:-1)*0.04,0))));
+let mitoCount=0;
+for(let i=0;i<10;i++){
+  const s=sampleSurf(ORG_IN,0.55); if(!s) continue;
+  const G=new THREE.Group(); G.position.copy(s.p); orient(G,s.n); cell.add(G);
+  mesh(mitoGeo,mitoMat,'mitochondrie',G); mesh(cristGeo,cristMat,'mitochondrie',G);
+  const a=0.44+R(0,0.08); addMover(G,[{d:s.n.clone().multiplyScalar(2.3),a,b:a+0.3}]);
+  if(mitoCount===0) addLabel('mitochondrie',G,V(0,0.25,0));
+  mitoCount++;
+}
+
+// Ribosomes libres (dans le cytoplasme pariétal et périnucléaire)
+{
+  const parts=[]; let first=null;
+  for(let k=0;k<6000&&parts.length<260;k++){
+    let p;
+    if(k%4===0){ p=NC.clone().add(V(R(-1,1)*PR.x,R(-1,1)*PR.y,R(-1,1)*PR.z)); const m=Math.sqrt(((p.x-NC.x)/NRAD.x)**2+((p.y-NC.y)/NRAD.y)**2+((p.z-NC.z)/NRAD.z)**2);
+      if(pocketM(p)>0.95||m<1.15||fShape(SH,p.x,p.y,p.z)>-MEM_IN-0.05) continue; }
+    else { p=surfP(SH,O,rdir(),R(MEM_IN+0.08,VAC_IN-0.1)); if(pocketM(p)<1.0) continue; }
+    if(placed.some(q=>q.r<1.5&&q.p.distanceTo(p)<q.r*0.7)) continue;
+    if(!first) first=p.clone();
+    parts.push(bake(new THREE.OctahedronGeometry(0.042,0),p));
+  }
+  const m=mesh(merge(parts),mat('ribosomes',0x6a5fd0,{roughness:0.5}),'ribosomes',cell);
+  addLabel('ribosomes',m,first);
+}
+
+// Microtubules corticaux : arcs transversaux sous la membrane
+{
+  const tubes=[]; let lblP=null;
+  for(let i=0;i<26;i++){
+    const x0=R(-5.6,5.6), a0=R(0,Math.PI*2), span=R(0.9,2.2), tilt=R(-0.12,0.12);
+    const pts=[];
+    for(let s=0;s<=16;s++){ const a=a0+span*s/16; const o=V(x0+tilt*Math.sin(a)*1.5+0.05*Math.sin(s),0,0);
+      pts.push(surfP(SH,o,V(0,Math.cos(a),Math.sin(a)),0.37)); }
+    if(!lblP) lblP=pts[8];
+    tubes.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),40,0.022,4,false));
+  }
+  const m=mesh(merge(tubes),mat('microtubules',0xa9c4ef,T(0.75,{roughness:0.4})),'microtubules',cell);
+  addLabel('microtubules',m,lblP);
+}
+
+// ---- Tissu : cellules voisines (comme sur la lame de TP) ----
+const tissueG=new THREE.Group(); cell.add(tissueG);
+const nWallMat=new THREE.MeshStandardMaterial({color:0xd6dcb8,...T(0.1,{depthWrite:false,roughness:0.9})});
+const nNucMat=new THREE.MeshStandardMaterial({color:0xa678e0,...T(0.5,{roughness:0.5})});
+const nChlMat=new THREE.MeshStandardMaterial({color:0x57b84f,...T(0.75,{roughness:0.5})});
+const nVacMat=new THREE.MeshStandardMaterial({color:0xb4508c,...T(0.2,{depthWrite:false,roughness:0.2})});
+const neighChl=[], neighVac=[];
+[[SX+A_END,SZ],[SX+A_END,-SZ],[-(SX+A_END),SZ],[-(SX+A_END),-SZ],[0,2*SZ],[0,-2*SZ]].forEach(([ox,oz])=>{
+  const sh=makeShape(0.14), off=V(ox,0,oz);
+  const w=new THREE.Mesh(patch(sh,O,0,Math.PI*2,0,Math.PI,40,18,0).translate(ox,0,oz),nWallMat); w.renderOrder=3; tissueG.add(w);
+  const vac=new THREE.Mesh(patch(sh,O,0,Math.PI*2,0,Math.PI,40,18,0.85).translate(ox,0,oz),nVacMat); tissueG.add(vac); neighVac.push(vac);
+  const side=rnd()<.5?1:-1, np=surfP(sh,V(R(-3,3),0,0),V(0,R(-0.3,0.3),side).normalize(),0.75).add(off);
+  const nu=new THREE.Mesh(blobify(new THREE.SphereGeometry(1,20,14),0.06),nNucMat); nu.scale.set(1.1,0.9,0.55); nu.position.copy(np); tissueG.add(nu);
+  const specks=[];
+  for(let k=0;k<26;k++){ const p=surfP(sh,O,rdir(),0.6); const n=grad(sh,p);
+    specks.push(bake(new THREE.SphereGeometry(0.3,10,6),p.add(off),new THREE.Quaternion().setFromUnitVectors(V(0,1,0),n),V(1,0.4,0.62))); }
+  const cm=new THREE.Mesh(merge(specks),nChlMat); tissueG.add(cm); neighChl.push(cm);
+});
+
+/* ---------- lignes de repère (dessin technique) ---------- */
+const lineMovers=movers.filter(m=>m.line);
+const lineGeo=new THREE.BufferGeometry();
+lineGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(lineMovers.length*6),3));
+const lines=new THREE.LineSegments(lineGeo,new THREE.LineDashedMaterial({color:0xd5ecd0,dashSize:0.22,gapSize:0.16,transparent:true,opacity:0.5,depthWrite:false}));
+lines.frustumCulled=false; cell.add(lines);
+const pivotGeo=new THREE.BufferGeometry();
+pivotGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(lineMovers.length*3),3));
+const pivots=new THREE.Points(pivotGeo,new THREE.PointsMaterial({color:0x9be07f,size:0.14,transparent:true,opacity:0.8,depthWrite:false}));
+pivots.frustumCulled=false; cell.add(pivots);
+
+/* ---------- étiquettes CSS ---------- */
+const labels={};
+for(const d of labelDefs){
+  const P=PARTS[d.id];
+  const div=document.createElement('div'); div.className='lbl'+(P.minor?' minor':'');
+  div.innerHTML=`<span class="pill" style="--c:${P.color}"><b>${P.num}</b>${P.short}</span>`;
+  div.addEventListener('pointerdown',e=>{ e.stopPropagation(); onPick(d.id); });
+  const o=new CSS2DObject(div); o.position.copy(d.offset); d.obj.add(o);
+  labels[d.id]={o,div};
+}
+
+/* =========================================================
+   État & logique
+   ========================================================= */
+const S={ mode:'elodee', tissue:true, scope:false, explode:0, labels:true, lines:true, cut:false, cutAxis:'z', cutPos:0, hidden:new Set(), isolated:null, selected:null, quiz:null, xr:false, arScale:0.018 };
+const _a=V(), _b=V(), _inv=new THREE.Matrix4();
+
+function wallStage(){ return st(S.explode,0,0.3); }
+function applyExplode(t){
+  const k0=1+0.8*st(S.explode,0,0.8), k1=1+0.8*st(t,0,0.8);
+  if(!S.xr&&!cell.userData.export&&k0!==k1){ _a.copy(camera.position).sub(controls.target).multiplyScalar(k1/k0); camera.position.copy(controls.target).add(_a); if(camTween) camTween.p1.sub(camTween.t1).multiplyScalar(k1/k0).add(camTween.t1); }
+  S.explode=t;
+  for(const m of movers){
+    m.obj.position.copy(m.base);
+    for(const o of m.offsets) m.obj.position.addScaledVector(o.d,st(t,o.a,o.b));
+  }
+  chlEnvMat.opacity=0.6-0.36*st(t,0.68,0.92);
+  const cf=1-st(t,0.16,0.36); cytoMat.opacity=0.5*cf; gMat.opacity=cf; gMat.transparent=true; pocketMat.opacity=0.1*cf; cytoG.visible=cf>0.01;
+  const tf=1-st(t,0,0.12); nWallMat.opacity=0.1*tf; nVacMat.opacity=0.22*tf; nNucMat.opacity=0.4*tf; nChlMat.opacity=0.45*tf; tissueG.visible=S.tissue&&tf>0.01&&!S.xr&&!cell.userData.export;
+  if(S.xr||cell.userData.export) cell.position.y=(2.55+8*wallStage())*cell.scale.y;
+  cell.updateMatrixWorld(true);
+  _inv.copy(cell.matrixWorld).invert();
+  const lp=lineGeo.attributes.position.array, pp=pivotGeo.attributes.position.array;
+  lineMovers.forEach((m,i)=>{
+    _a.copy(m.base); if(m.anchor) _a.add(m.anchor); _a.applyMatrix4(m.obj.parent.matrixWorld).applyMatrix4(_inv);
+    if(m.anchor) _b.copy(m.anchor).applyMatrix4(m.obj.matrixWorld).applyMatrix4(_inv); else _b.setFromMatrixPosition(m.obj.matrixWorld).applyMatrix4(_inv);
+    lp.set([_a.x,_a.y,_a.z,_b.x,_b.y,_b.z],i*6); pp.set([_a.x,_a.y,_a.z],i*3);
+  });
+  lineGeo.attributes.position.needsUpdate=true; pivotGeo.attributes.position.needsUpdate=true;
+  lines.computeLineDistances();
+  const show=S.lines&&t>0.02;
+  lines.visible=pivots.visible=show;
+  lines.material.opacity=0.5*Math.min(1,t*4); pivots.material.opacity=0.8*Math.min(1,t*4);
+  const v=Math.round(t*1000);
+  document.getElementById('explode').value=v; document.getElementById('xrExplode').value=v;
+  document.getElementById('pct').textContent=Math.round(t*100)+' %';
+  updateLabels();
+}
+
+const NO_ONION=['chloroplaste','thylakoides','amidon'];
+function modeHidden(id){ return S.mode==='oignon'&&NO_ONION.includes(id); }
+function partVisible(id){ if(modeHidden(id)) return false; return S.isolated? S.isolated===id : !S.hidden.has(id); }
+function isShown(o){ while(o){ if(!o.visible) return false; o=o.parent; } return true; }
+function applyVisibility(){
+  for(const m of pickables) m.visible=partVisible(m.userData.part);
+  document.querySelectorAll('.li').forEach(li=>li.classList.toggle('off',!partVisible(li.dataset.id)));
+  updateLabels();
+}
+function updateLabels(){
+  for(const id in labels){
+    const L=labels[id], P=PARTS[id];
+    const minOk = (!P.minor || S.explode>0.62) && (id!=='cytoplasme'||S.explode<0.3);
+    const vis = S.labels && !S.quiz && partVisible(id) && minOk;
+    L.o.visible=vis; L.div.style.display=vis?'':'none';
+    L.div.classList.toggle('sel',S.selected===id);
+  }
+}
+
+/* ---------- sélection ---------- */
+const HL=new THREE.Color(0x9be07f);
+function highlight(id,on){
+  if(!id) return;
+  for(const m of PARTS[id].mats){ m.emissive.copy(on?HL:new THREE.Color(0)); m.emissiveIntensity=on?0.38:1; }
+}
+function select(id,{focus=false}={}){
+  if(S.selected) highlight(S.selected,false);
+  S.selected=id;
+  if(id) highlight(id,true);
+  document.querySelectorAll('.li').forEach(li=>li.classList.toggle('sel',li.dataset.id===id));
+  renderInfo(); updateLabels();
+  if(id&&focus) focusPart(id);
+}
+const infoEl=document.getElementById('info');
+function renderInfo(){
+  const id=S.selected; if(!id){ infoEl.hidden=true; return; }
+  const P=PARTS[id];
+  infoEl.innerHTML=`<div class="ih"><span class="num" style="--c:${P.color}">${P.num}</span><div><div class="cat">${P.cat}</div><h2>${P.name}</h2></div><button class="x" aria-label="Fermer">×</button></div>
+  <div class="size">Taille réelle : ${P.size}</div><p>${P.desc}</p>
+  <h4>Fonctions</h4><ul>${P.fn.map(f=>`<li>${f}</li>`).join('')}</ul>
+  <div class="tp"><b>En TP / à retenir</b>${P.tp}</div>
+  <div class="iact"><button data-a="focus">Centrer</button><button data-a="isolate">${S.isolated===id?'Tout afficher':'Isoler'}</button><button data-a="hide">Masquer</button></div>`;
+  infoEl.hidden=false;
+  if(innerWidth<=760) document.getElementById('legend').hidden=true;
+  infoEl.querySelector('.x').onclick=()=>select(null);
+  infoEl.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{
+    const a=b.dataset.a;
+    if(a==='focus') focusPart(id);
+    if(a==='isolate'){ S.isolated=S.isolated===id?null:id; applyVisibility(); renderInfo(); }
+    if(a==='hide'){ S.isolated=null; S.hidden.add(id); applyVisibility(); select(null); }
+  });
+}
+
+/* ---------- caméra ---------- */
+let camTween=null;
+function tweenCam(pos,target,dur=900){ camTween={p0:camera.position.clone(),t0:controls.target.clone(),p1:pos,t1:target,start:performance.now(),dur}; }
+function focusPart(id){
+  const m=PARTS[id].meshes.find(x=>isShown(x))||PARTS[id].meshes[0];
+  const box=new THREE.Box3().setFromObject(m); const c=box.getCenter(V()); const size=box.getSize(V()).length();
+  const dist=Math.max(3.2,size*2.2);
+  const dir=camera.position.clone().sub(controls.target).normalize();
+  tweenCam(c.clone().addScaledVector(dir,dist),c);
+}
+
+/* ---------- picking ---------- */
+const ray=new THREE.Raycaster(); const ndc=new THREE.Vector2();
+function cutKeep(pWorld){
+  if(!S.cut) return true;
+  const l=cell.worldToLocal(pWorld.clone()); return l[S.cutAxis]<=S.cutPos;
+}
+function chooseHit(hits){
+  hits=hits.filter(h=>isShown(h.object)&&cutKeep(h.point));
+  if(!hits.length) return null;
+  let i=hits.findIndex(h=>!SHELLS.has(h.object.userData.part));
+  if(i<0) return hits[0].object.userData.part;
+  let id=hits[i].object.userData.part;
+  const inner=CONTAINS[id];
+  if(inner&&inner.length&&S.explode>0.6){
+    const d0=hits[i].distance;
+    const j=hits.findIndex((h,k)=>k>i&&inner.includes(h.object.userData.part)&&h.distance-d0<1.5);
+    if(j>=0) id=hits[j].object.userData.part;
+  }
+  return id;
+}
+function pickScreen(x,y){
+  const r=renderer.domElement.getBoundingClientRect();
+  ndc.set(((x-r.left)/r.width)*2-1,-((y-r.top)/r.height)*2+1);
+  ray.setFromCamera(ndc,camera);
+  return chooseHit(ray.intersectObjects(pickables,false));
+}
+let down=null;
+renderer.domElement.addEventListener('pointerdown',e=>{ down={x:e.clientX,y:e.clientY}; });
+renderer.domElement.addEventListener('pointerup',e=>{
+  if(!down) return; const moved=Math.hypot(e.clientX-down.x,e.clientY-down.y); down=null;
+  if(moved>7) return;
+  const id=pickScreen(e.clientX,e.clientY);
+  if(id) onPick(id); else if(!S.quiz) select(null);
+});
+const hoverEl=document.getElementById('hover');
+renderer.domElement.addEventListener('pointermove',e=>{
+  if(e.pointerType!=='mouse'||e.buttons) { hoverEl.hidden=true; return; }
+  const id=pickScreen(e.clientX,e.clientY);
+  renderer.domElement.style.cursor=id?'pointer':'grab';
+  if(id&&!S.quiz){ hoverEl.hidden=false; hoverEl.textContent=PARTS[id].name; hoverEl.style.left=e.clientX+'px'; hoverEl.style.top=e.clientY+'px'; }
+  else hoverEl.hidden=true;
+});
+renderer.domElement.addEventListener('pointerleave',()=>hoverEl.hidden=true);
+
+function onPick(id){
+  if(S.quiz){ quizAnswer(id); return; }
+  select(S.selected===id?null:id);
+}
+
+/* ---------- légende ---------- */
+const eyeSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const legendList=document.getElementById('legendList');
+IDS.forEach(id=>{
+  const P=PARTS[id];
+  const li=document.createElement('div'); li.className='li'; li.dataset.id=id;
+  li.innerHTML=`<span class="dot" style="--c:${P.color}">${P.num}</span><span class="nm">${P.short}</span><button class="eye" aria-label="Afficher / masquer ${P.short}">${eyeSvg}</button>`;
+  li.onclick=e=>{ if(e.target.closest('.eye')) return; if(S.quiz) return; select(id,{focus:true}); };
+  li.querySelector('.eye').onclick=()=>{ S.isolated=null; S.hidden.has(id)?S.hidden.delete(id):S.hidden.add(id); applyVisibility(); };
+  legendList.appendChild(li);
+});
+document.getElementById('showAll').onclick=()=>{ S.isolated=null; S.hidden.clear(); applyVisibility(); if(S.selected) renderInfo(); };
+const legendEl=document.getElementById('legend');
+if(innerWidth<=760) legendEl.hidden=true;
+document.getElementById('btnLegend').onclick=()=>{ legendEl.hidden=!legendEl.hidden; if(!legendEl.hidden&&innerWidth<=760) infoEl.hidden=true; else if(S.selected) infoEl.hidden=false; };
+
+/* ---------- éclatement ---------- */
+let explodeAnim=null;
+const playBtn=document.getElementById('play');
+function setPlayIcon(){ document.getElementById('playIco').innerHTML = explodeAnim? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>' : (S.explode>0.5?'<path d="M17 5v14L5 12z"/>':'<path d="M7 5v14l12-7z"/>'); }
+function animateExplode(to,dur=3200){ explodeAnim={from:S.explode,to,start:performance.now(),dur:dur*Math.abs(to-S.explode)+200}; setPlayIcon(); }
+playBtn.onclick=()=>{ playBtn.classList.remove('pulse'); if(explodeAnim){ explodeAnim=null; setPlayIcon(); return; } animateExplode(S.explode>0.5?0:1); };
+document.getElementById('explode').addEventListener('input',e=>{ explodeAnim=null; playBtn.classList.remove('pulse'); applyExplode(e.target.value/1000); setPlayIcon(); });
+
+/* ---------- options ---------- */
+function toggleChip(id,key,after){ const b=document.getElementById(id); b.onclick=()=>{ S[key]=!S[key]; b.classList.toggle('on',S[key]); after&&after(); }; }
+toggleChip('btnLabels','labels',updateLabels);
+toggleChip('btnLines','lines',()=>applyExplode(S.explode));
+toggleChip('btnTissue','tissue',()=>applyExplode(S.explode));
+function setScope(on){
+  S.scope=on; document.getElementById('btnScope').classList.toggle('on',on);
+  document.body.classList.toggle('scope',on); document.getElementById('scope').hidden=!on;
+  if(on) tweenCam(V(0.01,(innerWidth<760?40:28)*(1+0.8*st(S.explode,0,0.8)),0.6),V(0,0,0));
+  else tweenCam(HOME.pos.clone().multiplyScalar(1+0.8*st(S.explode,0,0.8)),HOME.target.clone());
+}
+document.getElementById('btnScope').onclick=()=>setScope(!S.scope);
+function applyMode(){
+  const on=S.mode==='oignon';
+  vacMat.color.set(on?0xb4508c:0x8fcde6); vacMat.opacity=on?0.55:0.26;
+  neighChl.forEach(m=>m.visible=!on); neighVac.forEach(m=>m.visible=on);
+  document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.m===S.mode));
+  document.querySelectorAll('.li').forEach(li=>li.hidden=modeHidden(li.dataset.id));
+  if(S.selected&&modeHidden(S.selected)) select(null);
+  applyVisibility(); if(S.selected) renderInfo();
+}
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{
+  if(S.quiz||S.mode===b.dataset.m) return; S.mode=b.dataset.m; applyMode();
+  toast(S.mode==='oignon'?"Épiderme d'oignon rouge : pas de chloroplastes, vacuole colorée par les anthocyanes":"Cellule chlorophyllienne (type élodée) : chloroplastes plaqués contre la paroi",3400);
+});
+document.getElementById('btnRotate').onclick=e=>{ controls.autoRotate=!controls.autoRotate; e.currentTarget.classList.toggle('on',controls.autoRotate); };
+document.getElementById('btnReset').onclick=()=>tweenCam(HOME.pos.clone().multiplyScalar(1+0.8*st(S.explode,0,0.8)),HOME.target.clone());
+
+const clipLocal=new THREE.Plane(), clipWorld=new THREE.Plane();
+const AXN={x:V(-1,0,0),y:V(0,-1,0),z:V(0,0,-1)};
+function updateCutPlane(){ clipLocal.set(AXN[S.cutAxis].clone(),S.cutPos); }
+document.getElementById('btnCut').onclick=e=>{
+  S.cut=!S.cut; e.currentTarget.classList.toggle('on',S.cut);
+  document.getElementById('cutRow').hidden=!S.cut;
+  renderer.clippingPlanes=S.cut?[clipWorld]:[]; updateCutPlane();
+};
+document.getElementById('cut').addEventListener('input',e=>{ S.cutPos=e.target.value/100; updateCutPlane(); });
+document.querySelectorAll('#cutAxis button').forEach(b=>b.onclick=()=>{
+  S.cutAxis=b.dataset.a; document.querySelectorAll('#cutAxis button').forEach(x=>x.classList.toggle('on',x===b)); updateCutPlane();
+});
+
+/* ---------- toast & modal ---------- */
+const toastEl=document.getElementById('toast'); let toastT=0;
+function toast(msg,ms=2200){ toastEl.textContent=msg; toastEl.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>toastEl.classList.remove('show'),ms); }
+const modal=document.getElementById('modal'), mbody=document.getElementById('mbody');
+function openModal(html){ mbody.innerHTML=html; modal.hidden=false; }
+function closeModal(){ modal.hidden=true; mbody.innerHTML=''; }
+modal.querySelector('.mclose').onclick=closeModal;
+modal.addEventListener('click',e=>{ if(e.target===modal) closeModal(); });
+
+document.getElementById('btnHelp').onclick=()=>openModal(`<h2>Mode d'emploi</h2>
+<ul>
+<li><b>Tourner</b> : glisser avec un doigt (ou clic gauche). <b>Zoomer</b> : pincer (ou molette). <b>Déplacer</b> : deux doigts (ou clic droit).</li>
+<li><b>Éclatement</b> : le curseur démonte la cellule par étapes, comme une montre : paroi → membrane → noyau → organites → ouverture des chloroplastes et de l'enveloppe nucléaire. Les pointillés relient chaque pièce à sa position d'origine.</li>
+<li><b>Touchez un organite</b> (ou une étiquette) pour ouvrir sa fiche : structure, taille réelle, fonctions, lien avec les TP. « Isoler » n'affiche que lui.</li>
+<li><b>Élodée / Oignon rouge</b> : cellule chlorophyllienne, ou cellule d'épiderme d'oignon (sans chloroplastes, vacuole rouge-violet).</li>
+<li><b>Vue microscope</b> : vue de dessus sur fond clair, comme à travers l'oculaire. <b>Tissu</b> affiche les cellules voisines.</li>
+<li><b>Coupe</b> : un plan de section (axes X, Y, Z) révèle l'intérieur, comme une coupe au microscope.</li>
+<li><b>Quiz</b> : 10 organites à retrouver, étiquettes masquées.</li>
+<li><b>RA</b> : sur téléphone, posez la cellule sur la paillasse (Android : Chrome ; iPhone/iPad : Safari).</li>
+</ul>
+<p class="note">Modèle schématique : tailles et nombres d'organites non respectés (16 chloroplastes ici contre 20 à 100 dans une cellule du mésophylle). Les filaments d'actine ne sont pas représentés.</p>`);
+
+/* =========================================================
+   Quiz
+   ========================================================= */
+const QUIZ_POOL=['paroi','plasmodesmes','membrane','cytoplasme','vacuole','noyau','nucleole','rer','rel','golgi','chloroplaste','thylakoides','amidon','mitochondrie','peroxysome','ribosomes','microtubules'];
+const quizEl=document.getElementById('quiz');
+document.getElementById('btnQuiz').onclick=startQuiz;
+function startQuiz(){
+  const pool=QUIZ_POOL.filter(id=>!modeHidden(id)); for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+  S.quiz={q:pool.slice(0,10),i:0,score:0,lock:false};
+  if(S.scope) setScope(false);
+  S.isolated=null; S.hidden.clear(); applyVisibility(); select(null);
+  if(S.explode<0.98) animateExplode(1,2200);
+  quizEl.hidden=false; document.getElementById('btnQuiz').classList.add('on');
+  updateLabels(); showQ();
+}
+function showQ(){
+  const z=S.quiz; quizEl.className='';
+  document.getElementById('qmeta').textContent=`Question ${z.i+1}/${z.q.length} · score ${z.score}`;
+  document.getElementById('qname').textContent=PARTS[z.q[z.i]].name;
+}
+function nextQ(){
+  const z=S.quiz; z.i++; z.lock=false; select(null);
+  if(z.i>=z.q.length){ endQuiz(true); return; } showQ();
+}
+function quizAnswer(id){
+  const z=S.quiz; if(z.lock) return; z.lock=true;
+  const good=z.q[z.i];
+  if(id===good){ z.score++; quizEl.className='ok'; toast('Bravo ! ✓'); highlight(good,true); setTimeout(()=>{ highlight(good,false); nextQ(); },900); }
+  else { quizEl.className='ko'; toast(`Non : vous avez touché « ${PARTS[id].short} ». La bonne réponse clignote.`,2400);
+    let n=0; const iv=setInterval(()=>{ highlight(good,n%2===0); if(++n>5){ clearInterval(iv); highlight(good,false); nextQ(); } },330); }
+}
+function endQuiz(done){
+  const z=S.quiz; S.quiz=null; quizEl.hidden=true; document.getElementById('btnQuiz').classList.remove('on'); updateLabels();
+  if(done) openModal(`<h2>Résultat : ${z.score} / ${z.q.length}</h2><p>${z.score>=8?'Excellent, la cellule végétale n\'a plus de secret pour vous.':z.score>=5?'Bien. Relisez les fiches des organites manqués.':'Revoyez les fiches puis retentez le quiz.'}</p><div class="mrow"><button class="mbtn" id="qAgain">Recommencer</button><button class="mbtn ghost" id="qClose">Fermer</button></div>`),
+    document.getElementById('qAgain').onclick=()=>{ closeModal(); startQuiz(); }, document.getElementById('qClose').onclick=closeModal;
+}
+document.getElementById('qskip').onclick=()=>{ if(S.quiz&&!S.quiz.lock) nextQ(); };
+document.getElementById('qstop').onclick=()=>endQuiz(false);
+
+/* =========================================================
+   Partage QR
+   ========================================================= */
+const inIframe=(()=>{ try{ return window.self!==window.top; }catch(e){ return true; } })();
+function pageURL(){ return location.href.split('#')[0]; }
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
+async function renderQR(url){
+  const box=document.getElementById('qrbox'); box.innerHTML='<div class="spin"></div>';
+  try{
+    if(!window.qrcode) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');
+    const qr=window.qrcode(0,'M'); qr.addData(url); qr.make();
+    box.innerHTML=qr.createSvgTag({cellSize:5,margin:3,scalable:true});
+  }catch(e){ box.innerHTML='<p>Impossible de générer le QR code ici. Adresse à communiquer :</p><code>'+url.replace(/</g,'&lt;')+'</code>'; }
+}
+function shareDialog(intro=''){
+  const def=inIframe?'':pageURL();
+  openModal(`<h2>QR code pour les étudiants</h2>${intro}
+  <p>Projetez ce QR code : les étudiants le scannent avec l'appareil photo de leur téléphone et ouvrent directement la cellule 3D.</p>
+  <label style="font-size:12px;color:var(--mute)">Adresse de la page hébergée</label>
+  <input type="url" id="qrUrl" placeholder="https://votre-site/cellule-vegetale-3d.html" value="${def}">
+  <div class="mrow"><button class="mbtn" id="qrGo">Générer le QR code</button><button class="mbtn ghost" id="qrCopy">Copier l'adresse</button></div>
+  <div id="qrbox"></div>
+  ${inIframe?'<p class="note">Vous êtes dans l\'aperçu Claude : collez l\'adresse où le fichier HTML est hébergé (GitHub Pages, Moodle/ENT, Netlify…). L\'adresse doit commencer par https:// pour que la RA fonctionne.</p>':''}`);
+  const inp=document.getElementById('qrUrl');
+  document.getElementById('qrGo').onclick=()=>{ const u=inp.value.trim(); if(!u){ inp.focus(); return; } renderQR(u); };
+  document.getElementById('qrCopy').onclick=async()=>{ try{ await navigator.clipboard.writeText(inp.value.trim()); toast('Adresse copiée'); }catch(e){ inp.select(); toast('Copie refusée : sélectionnez et copiez manuellement'); } };
+  if(def) renderQR(def);
+}
+document.getElementById('btnShare').onclick=()=>shareDialog();
+
+/* =========================================================
+   Réalité augmentée
+   ========================================================= */
+const quickLookOK=(()=>{ const a=document.createElement('a'); return !!(a.relList&&a.relList.supports&&a.relList.supports('ar')); })();
+let webxrOK=false;
+if(navigator.xr&&navigator.xr.isSessionSupported){ navigator.xr.isSessionSupported('immersive-ar').then(ok=>{ webxrOK=ok; }).catch(()=>{}); }
+
+document.getElementById('btnAR').onclick=()=>{
+  if(!inIframe&&webxrOK) return startWebXR();
+  if(!inIframe&&quickLookOK) return quickLookDialog();
+  arHelpDialog();
+};
+function arHelpDialog(){
+  const why = inIframe
+    ? `<p><b>Vous consultez la page dans un aperçu intégré</b> : l'accès à la caméra y est bloqué. La RA fonctionne quand la page est ouverte <b>directement</b> dans le navigateur du téléphone, depuis une adresse <b>https://</b>.</p>`
+    : (!window.isSecureContext ? `<p><b>La page n'est pas servie en HTTPS</b> : les navigateurs n'autorisent la RA que sur une adresse sécurisée (https://).</p>`
+    : `<p><b>Ce navigateur ne propose pas la RA.</b></p>`);
+  openModal(`<h2>Voir la cellule en RA sur la paillasse</h2>${why}
+  <ol>
+    <li><b>Android</b> : Chrome + « Services Google Play pour la RA » (ARCore). La cellule se pose sur la table, reste interactive (éclatement, identification des organites).</li>
+    <li><b>iPhone / iPad</b> : Safari (iOS 12 ou plus récent). La cellule s'ouvre dans AR Quick Look, dans l'état d'éclatement choisi.</li>
+    <li>Sur ordinateur, la RA n'est pas disponible : utilisez la vue 3D.</li>
+  </ol>
+  <div class="mrow"><button class="mbtn" id="arQR">Afficher un QR code pour les téléphones</button>
+  ${(webxrOK||quickLookOK)?'<button class="mbtn ghost" id="arTry">Essayer quand même</button>':''}</div>
+  <p class="note">Astuce : réglez l'éclatement avant d'ouvrir la RA sur iPhone ; sur Android, le curseur reste disponible pendant la RA.</p>`);
+  document.getElementById('arQR').onclick=()=>shareDialog();
+  const t=document.getElementById('arTry'); if(t) t.onclick=()=>{ closeModal(); webxrOK?startWebXR():quickLookDialog(); };
+}
+
+/* ---- iOS : AR Quick Look (USDZ généré à la volée) ---- */
+let lastUSDZ=null;
+async function quickLookDialog(){
+  openModal(`<h2>Réalité augmentée (iPhone / iPad)</h2><p>Préparation du modèle 3D dans l'état actuel (éclatement ${Math.round(S.explode*100)} %)…</p><div class="spin"></div>`);
+  try{
+    const thumb=snapshot();
+    const blob=await exportUSDZ();
+    if(lastUSDZ) URL.revokeObjectURL(lastUSDZ);
+    lastUSDZ=URL.createObjectURL(blob);
+    mbody.innerHTML=`<h2>Réalité augmentée (iPhone / iPad)</h2>
+    <p>Touchez l'image : AR Quick Look s'ouvre. Visez la paillasse, la cellule s'y pose ; pincez pour l'agrandir, faites-la pivoter avec deux doigts.</p>
+    <div style="text-align:center"><a class="qlink" rel="ar" href="${lastUSDZ}"><img src="${thumb}" alt="Ouvrir la cellule en réalité augmentée"></a><div style="margin-top:8px;color:var(--acc);font-weight:600">↑ Toucher pour ouvrir en RA</div></div>
+    <p class="note">Pour une autre étape du démontage, fermez, réglez le curseur « Éclatement » puis relancez « Voir en RA ».</p>`;
+  }catch(err){
+    console.error(err);
+    mbody.innerHTML=`<h2>RA indisponible</h2><p>Le modèle n'a pas pu être préparé sur cet appareil (${String(err&&err.message||err).replace(/</g,'&lt;')}).</p>`;
+  }
+}
+function snapshot(){
+  renderer.render(scene,camera);
+  try{ return renderer.domElement.toDataURL('image/jpeg',0.8); }catch(e){ return ''; }
+}
+async function exportUSDZ(){
+  const { USDZExporter } = await import('three/addons/exporters/USDZExporter.js');
+  const prevSel=S.selected; if(prevSel) highlight(prevSel,false);
+  const parent=cell.parent, keepS=cell.scale.clone(), keepP=cell.position.clone();
+  const ex=new THREE.Scene();
+  ex.add(cell); cell.scale.setScalar(S.arScale); cell.userData.export=true; applyExplode(S.explode); tissueG.visible=false;
+  ex.updateMatrixWorld(true);
+  let data;
+  try{
+    const exp=new USDZExporter();
+    data = exp.parseAsync ? await exp.parseAsync(ex) : await exp.parse(ex);
+  } finally {
+    cell.userData.export=false; tissueG.visible=true; parent.add(cell); cell.scale.copy(keepS); cell.position.copy(keepP); applyExplode(S.explode);
+    if(prevSel) highlight(prevSel,true);
+  }
+  return new Blob([data],{type:'model/vnd.usdz+zip'});
+}
+
+/* ---- Android : WebXR (hit-test + dom-overlay) ---- */
+const xrOverlay=document.getElementById('xrOverlay');
+const xrHint=document.getElementById('xrHint'), xrCard=document.getElementById('xrCard');
+const arAnchor=new THREE.Group(); arAnchor.visible=false; scene.add(arAnchor);
+const reticle=new THREE.Mesh(new THREE.RingGeometry(0.05,0.065,40).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x9be07f}));
+reticle.matrixAutoUpdate=false; reticle.visible=false; scene.add(reticle);
+let hitSource=null, xrMode='place', placedAR=false;
+const controller=renderer.xr.getController(0); scene.add(controller);
+
+xrOverlay.querySelectorAll('.xr-bottom,.xr-top,.xr-card').forEach(el=>el.addEventListener('beforexrselect',e=>e.preventDefault()));
+xrOverlay.querySelectorAll('.xr-mode button').forEach(b=>b.onclick=()=>{
+  xrMode=b.dataset.m; xrOverlay.querySelectorAll('.xr-mode button').forEach(x=>x.classList.toggle('on',x===b));
+  xrHint.textContent = xrMode==='place' ? 'Touchez la paillasse pour (re)placer la cellule' : 'Touchez un organite pour l\'identifier';
+  if(xrMode==='place'){ xrCard.hidden=true; if(S.selected) select(null); }
+});
+document.getElementById('xrExplode').addEventListener('input',e=>{ explodeAnim=null; applyExplode(e.target.value/1000); });
+document.getElementById('xrRotL').onclick=()=>{ arAnchor.rotation.y+=Math.PI/8; };
+document.getElementById('xrRotR').onclick=()=>{ arAnchor.rotation.y-=Math.PI/8; };
+document.getElementById('xrSmaller').onclick=()=>setARScale(S.arScale/1.25);
+document.getElementById('xrBigger').onclick=()=>setARScale(S.arScale*1.25);
+document.getElementById('xrExit').onclick=()=>{ const s=renderer.xr.getSession(); if(s) s.end(); };
+function setARScale(s){ S.arScale=Math.max(0.006,Math.min(0.12,s)); if(S.xr){ cell.scale.setScalar(S.arScale); applyExplode(S.explode); } }
+
+async function startWebXR(){
+  try{
+    const session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay'],domOverlay:{root:xrOverlay}});
+    renderer.xr.setReferenceSpaceType('local');
+    await renderer.xr.setSession(session);
+    S.xr=true; placedAR=false; xrMode='place';
+    xrOverlay.hidden=false; document.body.classList.add('in-xr');
+    xrOverlay.querySelectorAll('.xr-mode button').forEach(x=>x.classList.toggle('on',x.dataset.m==='place'));
+    xrHint.textContent='Visez la paillasse, puis touchez l\'écran pour poser la cellule'; xrCard.hidden=true;
+    labelsDiv.style.display='none'; controls.enabled=false;
+    arAnchor.add(cell); cell.position.set(0,0,0); cell.rotation.set(0,0,0); cell.scale.setScalar(S.arScale);
+    arAnchor.visible=false; applyExplode(S.explode);
+    const viewer=await session.requestReferenceSpace('viewer');
+    hitSource=await session.requestHitTestSource({space:viewer});
+    session.addEventListener('end',onXREnd);
+  }catch(err){
+    console.error(err);
+    openModal(`<h2>Impossible de lancer la RA</h2><p>${String(err&&err.message||err).replace(/</g,'&lt;')}</p><p>Vérifiez que « Services Google Play pour la RA » est installé et que la page est ouverte en https:// dans Chrome.</p>`);
+  }
+}
+controller.addEventListener('select',()=>{
+  if(!S.xr) return;
+  if(xrMode==='place'||!placedAR){
+    if(!reticle.visible) return;
+    arAnchor.position.setFromMatrixPosition(reticle.matrix);
+    const cam=renderer.xr.getCamera(); const cp=V().setFromMatrixPosition(cam.matrixWorld);
+    arAnchor.rotation.set(0,Math.atan2(cp.x-arAnchor.position.x,cp.z-arAnchor.position.z),0);
+    arAnchor.visible=true; placedAR=true;
+    xrHint.textContent='Cellule posée ! Réglez l\'éclatement ou passez en mode « Identifier »';
+    return;
+  }
+  const m=new THREE.Matrix4().extractRotation(controller.matrixWorld);
+  ray.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+  ray.ray.direction.set(0,0,-1).applyMatrix4(m);
+  const id=chooseHit(ray.intersectObjects(pickables,false));
+  if(id){ select(id); const P=PARTS[id];
+    xrCard.innerHTML=`<small>${P.num} · ${P.cat}</small><b>${P.name}</b><p>${P.fn[0]}</p>`; xrCard.hidden=false; }
+  else { xrCard.hidden=true; select(null); }
+});
+function onXREnd(){
+  S.xr=false; hitSource=null; reticle.visible=false; arAnchor.visible=false;
+  scene.add(cell); cell.position.set(0,0,0); cell.rotation.set(0,0,0); cell.scale.setScalar(1);
+  applyExplode(S.explode);
+  xrOverlay.hidden=true; document.body.classList.remove('in-xr');
+  labelsDiv.style.display=''; controls.enabled=true; onResize();
+}
+
+/* =========================================================
+   Boucle de rendu
+   ========================================================= */
+function onResize(){
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  if(!S.xr) renderer.setSize(innerWidth,innerHeight);
+  labelRenderer.setSize(innerWidth,innerHeight);
+}
+addEventListener('resize',onResize);
+
+renderer.setAnimationLoop((time,frame)=>{
+  const now=performance.now();
+  if(explodeAnim){
+    const k=clamp01((now-explodeAnim.start)/explodeAnim.dur);
+    applyExplode(explodeAnim.from+(explodeAnim.to-explodeAnim.from)*k);
+    if(k>=1){ explodeAnim=null; setPlayIcon(); }
+  }
+  if(camTween&&!S.xr){
+    const k=ease(clamp01((now-camTween.start)/camTween.dur));
+    camera.position.lerpVectors(camTween.p0,camTween.p1,k); controls.target.lerpVectors(camTween.t0,camTween.t1,k);
+    if(k>=1) camTween=null;
+  }
+  if(S.xr&&frame&&hitSource){
+    const res=frame.getHitTestResults(hitSource);
+    if(res.length){ const pose=res[0].getPose(renderer.xr.getReferenceSpace()); if(pose){ reticle.visible=true; reticle.matrix.fromArray(pose.transform.matrix); } }
+    else reticle.visible=false;
+  }
+  if(cytoG.visible){ const tt=now/1000; for(const q of granules){ let u=(q.ph+tt*q.sp)%1; if(u<0) u+=1; q.c.getPointAt(u,q.g.position); } }
+  if(S.cut){ cell.updateMatrixWorld(true); clipWorld.copy(clipLocal).applyMatrix4(cell.matrixWorld); }
+  if(!S.xr) controls.update();
+  renderer.render(scene,camera);
+  if(!S.xr) labelRenderer.render(scene,camera);
+});
+
+applyMode();
+applyExplode(0);
+const ld=document.getElementById('loader'); ld.style.opacity='0'; setTimeout(()=>ld.remove(),450);
+</script>
+</body>
+</html>
